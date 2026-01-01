@@ -19,9 +19,10 @@ enum class MeasurementId : uint8_t {
   Pressure,
 
   // Air quality
-  IAQ, // Indoor Air Quality index
-  CO2, // Estimated CO2 in ppm
-  VOC, // Estimated VOC in ppm
+  IAQ,         // Indoor Air Quality index
+  IAQAccuracy, // IAQ calibration accuracy (0-3)
+  CO2,         // Estimated CO2 in ppm
+  VOC,         // Estimated VOC in ppm
 
   // Light
   Illuminance,
@@ -60,6 +61,7 @@ inline constexpr std::array<MeasurementMeta,
 
         // Air quality
         {.name = "iaq", .unit = ""},
+        {.name = "iaq_accuracy", .unit = "/3"},
         {.name = "co2", .unit = "ppm"},
         {.name = "voc", .unit = "ppm"},
 

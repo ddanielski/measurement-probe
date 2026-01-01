@@ -19,6 +19,7 @@ enum class Idx : size_t {
   Humidity,
   Pressure,
   IAQ,
+  IAQAccuracy,
   CO2,
   VOC,
   Count
@@ -61,11 +62,6 @@ public:
 
   /// Save BSEC state
   [[nodiscard]] core::Status save_state();
-
-  /// Get IAQ accuracy (0-3, 3 = calibrated)
-  [[nodiscard]] uint8_t iaq_accuracy() const {
-    return last_output_.iaq_accuracy;
-  }
 
 private:
   [[nodiscard]] core::Status init_bsec();

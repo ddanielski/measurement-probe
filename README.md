@@ -172,9 +172,3 @@ go run tools/setup/main.go
 idf.py fullclean
 idf.py build
 ```
-
-## License
-
-This project's code is MIT licensed. External dependencies have their own licenses:
-- BME68x_SensorAPI: BSD-3-Clause
-- BSEC2: Bosch Proprietary License

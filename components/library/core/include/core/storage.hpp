@@ -7,7 +7,6 @@
 
 #include "result.hpp"
 
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -72,8 +71,9 @@ public:
       return get_u8(key);
     } else if constexpr (std::is_enum_v<T>) {
       auto r = get<std::underlying_type_t<T>>(key);
-      if (!r)
+      if (!r) {
         return r.error();
+      }
       return static_cast<T>(*r);
     } else {
       static_assert(sizeof(T) == 0, "Unsupported type");
@@ -143,17 +143,10 @@ protected:
 
 inline CommitGuard::~CommitGuard() {
   if (!released_) {
-    storage_.commit();
+    (void)storage_.commit();
   }
 }
 
 using StoragePtr = std::unique_ptr<IStorage>;
-
-/// Creates storage backends
-class StorageFactory {
-public:
-  [[nodiscard]] static StoragePtr create_nvs(std::string_view ns_name);
-  [[nodiscard]] static esp_err_t init_nvs_partition();
-};
 
 } // namespace core
