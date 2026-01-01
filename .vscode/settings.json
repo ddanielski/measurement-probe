@@ -1,4 +1,21 @@
 {
     "idf.pythonInstallPath": "/usr/bin/python3",
-    "idf.port": "/dev/ttyACM0"
+    "idf.port": "/dev/ttyACM0",
+    "cSpell.words": [
+        "LOGI",
+        "LOGW",
+        "LOGE",
+        "LOGD",
+        "LOGV",
+        "bsec",
+        "bme680",
+        "bme688",
+        "ioctl",
+        "nvs",
+        "gpio",
+        "freertos",
+        "rtos",
+        "idf",
+        "esp32"
+    ]
 }

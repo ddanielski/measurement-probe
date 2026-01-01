@@ -2,19 +2,7 @@ idf_component_register(
     SRCS "main.cpp"
     INCLUDE_DIRS "."
     REQUIRES
-        # Library layer
-        core
-        power
-        sensor_base
-
-        # Driver layer
-        i2c
-        bme680
-
-        # Sensor layer
-        bme680_sensor
-
-        # ESP-IDF
+        application
         log
 )
 

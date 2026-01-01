@@ -6,7 +6,8 @@
 #pragma once
 
 #include "event_loop.hpp"
-#include "storage.hpp"
+#include "nvs_storage.hpp"
+#include "storage_manager.hpp"
 
 #include <cassert>
 
@@ -31,10 +32,12 @@ public:
     return Status{};
   }
 
-  /// Access storage (asserts if not initialized)
-  [[nodiscard]] IStorage &storage() {
-    assert(storage_ != nullptr && "Storage not initialized");
-    return *storage_;
+  /// Access storage manager
+  [[nodiscard]] StorageManager &storage_manager() { return storage_manager_; }
+
+  /// Access a storage namespace (convenience method)
+  [[nodiscard]] IStorage &storage(NamespaceId ns = NamespaceId::App) {
+    return storage_manager_.open(ns);
   }
 
   /// Access event bus
@@ -57,23 +60,28 @@ protected:
   /// Initialize event bus
   static Status init_events() { return EventBus::initialize(); }
 
-  /// Initialize storage subsystem
-  Status init_storage() {
-    esp_err_t err = StorageFactory::init_nvs_partition();
-    if (err != ESP_OK) {
-      return err;
-    }
-
-    storage_ = StorageFactory::create_nvs("app");
-    if (storage_ == nullptr || !storage_->is_ready()) {
-      return ESP_FAIL;
-    }
-
-    return Status{};
+  /// Override to provide storage configuration
+  /// Default: all namespaces → NVS
+  [[nodiscard]] virtual StorageConfig get_storage_config() const {
+    StorageConfig config{};
+    config.map(NamespaceId::App, BackendId::Nvs);
+    config.map(NamespaceId::Bsec, BackendId::Nvs);
+    config.map(NamespaceId::Wifi, BackendId::Nvs);
+    return config;
   }
 
-  StoragePtr
-      storage_; // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
+  /// Initialize storage subsystem
+  Status init_storage() {
+    // Add NVS backend
+    storage_manager_.add_backend(std::make_unique<NvsBackend>());
+
+    // Apply configuration
+    storage_manager_.configure(get_storage_config());
+
+    return storage_manager_.init();
+  }
+
+  StorageManager storage_manager_; // NOLINT
 };
 
 } // namespace core

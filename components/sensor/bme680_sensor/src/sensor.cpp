@@ -130,6 +130,7 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
     store(I(Idx::Humidity), MeasurementId::Humidity, raw.humidity);
     store(I(Idx::Pressure), MeasurementId::Pressure, raw.pressure);
     store(I(Idx::IAQ), MeasurementId::IAQ, 0.0F);
+    store(I(Idx::IAQAccuracy), MeasurementId::IAQAccuracy, 0.0F);
     store(I(Idx::CO2), MeasurementId::CO2, 0.0F);
     store(I(Idx::VOC), MeasurementId::VOC, 0.0F);
     return get_measurements();
@@ -143,6 +144,8 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
   store(I(Idx::Humidity), MeasurementId::Humidity, last_output_.humidity);
   store(I(Idx::Pressure), MeasurementId::Pressure, last_output_.pressure);
   store(I(Idx::IAQ), MeasurementId::IAQ, last_output_.iaq);
+  store(I(Idx::IAQAccuracy), MeasurementId::IAQAccuracy,
+        static_cast<float>(last_output_.iaq_accuracy));
   store(I(Idx::CO2), MeasurementId::CO2, last_output_.co2);
   store(I(Idx::VOC), MeasurementId::VOC, last_output_.voc);
 
