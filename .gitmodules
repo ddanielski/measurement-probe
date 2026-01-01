@@ -1,0 +1,8 @@
+[submodule "components/external/Bosch-BSEC2-Library"]
+	path = components/external/Bosch-BSEC2-Library
+	url = https://github.com/boschsensortec/Bosch-BSEC2-Library.git
+	branch = 1.10.2610
+[submodule "components/external/BME68x_SensorAPI"]
+	path = components/external/BME68x_SensorAPI
+	url = https://github.com/boschsensortec/BME68x_SensorAPI.git
+	branch = v4.4.8

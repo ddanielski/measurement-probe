@@ -1,0 +1,75 @@
+# Clangd configuration for ESP-IDF projects (using esp-clang)
+# ============================================================
+# esp-clang's clangd has native RISC-V support, so we don't need
+# to manually specify target or remove GCC-specific flags.
+# The compile_commands.json from idf.py build provides most settings.
+
+CompileFlags:
+  # These are only used when compile_commands.json is not available
+  Add:
+    - "-std=c++23"
+  Remove:
+    # Remove GCC-specific flags that esp-clang doesn't understand
+    - "-fno-tree-switch-conversion"
+    - "-fstrict-volatile-bitfields"
+    - "-mtext-section-literals"
+    - "-mlongcalls"
+    - "-fno-shrink-wrap"
+
+Diagnostics:
+  Suppress:
+    # Suppress warnings about unknown ESP-IDF attributes
+    - "unknown_attr"
+    # Suppress pragma warnings from ESP-IDF
+    - "pragma-once-outside-header"
+  ClangTidy:
+    Add:
+      - "bugprone-*"
+      - "cppcoreguidelines-*"
+      - "modernize-*"
+      - "performance-*"
+      - "readability-*"
+    Remove:
+      - "bugprone-easily-swappable-parameters"
+      - "readability-function-cognitive-complexity"
+      - "modernize-use-trailing-return-type"
+      - "cppcoreguidelines-pro-type-reinterpret-cast"
+      - "cppcoreguidelines-pro-bounds-pointer-arithmetic"
+      - "cppcoreguidelines-avoid-magic-numbers"
+      - "readability-magic-numbers"
+      - "cppcoreguidelines-pro-type-vararg"
+      # ESP-IDF macros (ESP_LOG*, etc.) use do-while(0) idiom
+      - "cppcoreguidelines-avoid-do-while"
+      # ESP-IDF uses unions internally (common in embedded C)
+      - "cppcoreguidelines-pro-type-union-access"
+    CheckOptions:
+      readability-identifier-naming.ClassCase: CamelCase
+      readability-identifier-naming.FunctionCase: lower_case
+      readability-identifier-naming.VariableCase: lower_case
+      readability-identifier-naming.ConstantCase: UPPER_CASE
+      readability-identifier-naming.EnumConstantCase: CamelCase
+      readability-identifier-naming.NamespaceCase: lower_case
+
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
+
+Hover:
+  ShowAKA: true
+
+Index:
+  Background: Build
+  StandardLibrary: true
+
+---
+
+# C files use C17
+If:
+  PathMatch: ".*\\.c"
+CompileFlags:
+  Add:
+    - "-std=c17"
+  Remove:
+    - "-std=c++23"
+

@@ -1,0 +1,109 @@
+{
+  "name": "ESP-IDF Measurement Probe",
+
+  // Build from our custom Dockerfile (pre-installed: clangd, p10k, etc.)
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "espressif.esp-idf-extension",
+        "EditorConfig.EditorConfig",
+        "streetsidesoftware.code-spell-checker",
+        "eamodio.gitlens",
+        "golang.go"
+      ],
+      "settings": {
+        // =====================================================================
+        // Terminal - Powerlevel10k Configuration
+        // =====================================================================
+        // For best experience, install a Nerd Font on your HOST machine:
+        // - Recommended: "MesloLGS NF" from https://github.com/romkatv/powerlevel10k#fonts
+        // - Then set your terminal font in VS Code settings (host-side)
+        "terminal.integrated.fontFamily": "MesloLGS NF, Menlo, Monaco, 'Courier New', monospace",
+        "terminal.integrated.fontSize": 13,
+        "terminal.integrated.lineHeight": 1.2,
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/bin/zsh",
+            "icon": "terminal-bash"
+          }
+        },
+
+        // =====================================================================
+        // Clangd Configuration (using ESP-IDF's esp-clang)
+        // =====================================================================
+        // esp-clang's clangd has native RISC-V/Xtensa support for ESP32 targets
+        // Path uses symlink created in Dockerfile for version independence
+        "clangd.path": "/opt/esp/esp-clang/bin/clangd",
+        "clangd.arguments": [
+          "--background-index",
+          "--clang-tidy",
+          "--header-insertion=iwyu",
+          "--completion-style=detailed",
+          "--function-arg-placeholders",
+          "--fallback-style=LLVM",
+          "--query-driver=/opt/esp/tools/riscv32-esp-elf/**/riscv32-esp-elf-*"
+        ],
+
+        // =====================================================================
+        // Editor Configuration
+        // =====================================================================
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "[cpp]": {
+          "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+        },
+        "[c]": {
+          "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+        },
+        "files.associations": {
+          "*.h": "c",
+          "*.hpp": "cpp",
+          "*.cpp": "cpp",
+          "*.c": "c"
+        },
+
+        // =====================================================================
+        // C/C++ and CMake
+        // =====================================================================
+        "C_Cpp.intelliSenseEngine": "disabled",
+        "cmake.configureOnOpen": false,
+
+        // =====================================================================
+        // ESP-IDF Configuration
+        // =====================================================================
+        "idf.espIdfPath": "/opt/esp/idf",
+        "idf.toolsPath": "/opt/esp",
+        "idf.pythonBinPath": "/opt/esp/python_env/idf5.5_py3.12_env/bin/python"
+      }
+    }
+  },
+
+  "containerEnv": {
+    "IDF_PATH": "/opt/esp/idf",
+    "IDF_TOOLS_PATH": "/opt/esp"
+  },
+
+  "postCreateCommand": ".devcontainer/post-create.sh",
+
+  "remoteUser": "vscode",
+
+  // Mount .cache for p10k instant prompt persistence
+  "mounts": [
+    "source=${localWorkspaceFolder}/.cache,target=/home/vscode/.cache,type=bind,consistency=cached"
+  ],
+
+  // Privileged mode for USB serial access to ESP32
+  "privileged": true,
+
+  "postStartCommand": "git submodule update --init --recursive && idf.py --version && echo 'ESP-IDF environment ready!'"
+}
+
