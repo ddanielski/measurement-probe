@@ -1,0 +1,130 @@
+# Measurement Probe - Clang Format Configuration
+# Based on LLVM style with modifications for embedded C++
+
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+NamespaceIndentation: None
+
+# Braces
+BreakBeforeBraces: Attach
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+# Line width and breaking
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Pointer and reference alignment
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Includes
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Project headers (relative paths)
+  - Regex: '^".*"'
+    Priority: 1
+  # ESP-IDF headers
+  - Regex: '^<(esp_|driver/|freertos/|nvs|spi_|i2c)'
+    Priority: 2
+  # C++ standard library
+  - Regex: '^<[a-z_]+>'
+    Priority: 3
+  # C standard library
+  - Regex: '^<.*\.h>'
+    Priority: 4
+  # External libraries
+  - Regex: '^<.*>'
+    Priority: 5
+
+SortIncludes: CaseSensitive
+IncludeIsMainRegex: '(_test)?$'
+
+# Spaces
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles: Never
+SpacesInCStyleCastParentheses: false
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Other
+AccessModifierOffset: -4
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+FixNamespaceComments: true
+MaxEmptyLinesToKeep: 1
+ReflowComments: true
+SortUsingDeclarations: true
+Standard: c++23
+
+# Penalties
+PenaltyBreakAssignment: 2
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 60
+
+# Keep short namespace definitions on single line
+CompactNamespaces: false
+
+# Lambda formatting
+LambdaBodyIndentation: Signature
+
+# Requires clause (C++20/23)
+RequiresClausePosition: OwnLine
+IndentRequiresClause: true
+
+# Attribute macros (ESP-IDF specific)
+AttributeMacros:
+  - IRAM_ATTR
+  - RTC_DATA_ATTR
+  - RTC_NOINIT_ATTR
+  - DMA_ATTR
+  - EXT_RAM_ATTR
+

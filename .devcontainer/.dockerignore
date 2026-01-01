@@ -1,0 +1,9 @@
+# Ignore build artifacts to speed up Docker context
+build/
+sdkconfig
+sdkconfig.old
+compile_commands.json
+.cache/
+*.pyc
+__pycache__/
+

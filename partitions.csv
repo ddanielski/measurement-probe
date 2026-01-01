@@ -1,0 +1,14 @@
+# Measurement Probe - Partition Table
+# =====================================
+# ESP32-C3 has 4MB flash
+# Layout: NVS + OTA data + 2x OTA slots + Factory (optional)
+#
+# Name,       Type, SubType,  Offset,   Size,    Flags
+# -------------------------------------------------------------------------
+nvs,          data, nvs,      0x9000,   0x6000,
+otadata,      data, ota,      0xf000,   0x2000,
+phy_init,     data, phy,      0x11000,  0x1000,
+ota_0,        app,  ota_0,    0x20000,  0x180000,
+ota_1,        app,  ota_1,    0x1A0000, 0x180000,
+# storage,    data, spiffs,   0x320000, 0xE0000,
+
