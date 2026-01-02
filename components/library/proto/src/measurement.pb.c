@@ -10,8 +10,6 @@ PB_BIND(sensor_Measurement, sensor_Measurement, AUTO)
 
 PB_BIND(sensor_MeasurementBatch, sensor_MeasurementBatch, 2)
 
-PB_BIND(sensor_DeviceConfig, sensor_DeviceConfig, 2)
-
 #ifndef PB_CONVERT_DOUBLE_FLOAT
 /* On some platforms (such as AVR), double is really float.
  * To be able to encode/decode double on these platforms, you need.
