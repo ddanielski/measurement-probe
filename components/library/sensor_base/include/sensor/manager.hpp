@@ -51,7 +51,7 @@ public:
   read(std::string_view name) {
     auto *sensor = find(name);
     if (sensor == nullptr) {
-      return ESP_ERR_NOT_FOUND;
+      return core::Err(ESP_ERR_NOT_FOUND);
     }
     return sensor->read();
   }
@@ -70,11 +70,11 @@ public:
     // Read each sensor
     for (auto &s : sensors_) {
       auto result = s->read();
-      if (!result.ok()) {
+      if (!result) {
         // Continue reading other sensors on failure
         continue;
       }
-      for (const auto &m : result.value()) {
+      for (const auto &m : *result) {
         all.push_back(m);
       }
     }

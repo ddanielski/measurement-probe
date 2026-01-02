@@ -30,7 +30,7 @@ BME680Sensor::BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage,
 
   // Open driver
   auto status = driver_.open();
-  if (!status.ok()) {
+  if (!status) {
     ESP_LOGE(TAG, "Failed to open driver: %s", esp_err_to_name(status.error()));
     return;
   }
@@ -39,8 +39,8 @@ BME680Sensor::BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage,
   auto info_result = driver_.ioctl(
       static_cast<uint32_t>(driver::bme680::IoctlCmd::GetDeviceInfo),
       std::any{});
-  if (info_result.ok()) {
-    auto info = std::any_cast<driver::bme680::DeviceInfo>(info_result.value());
+  if (info_result) {
+    auto info = std::any_cast<driver::bme680::DeviceInfo>(*info_result);
     ESP_LOGI(TAG, "BME6%s detected (chip ID: 0x%02X)",
              info.variant_id == 1 ? "88" : "80", info.chip_id);
   }
@@ -51,12 +51,12 @@ BME680Sensor::BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage,
 
 core::Status BME680Sensor::init_bsec() {
   if (initialized_) {
-    return ESP_OK;
+    return core::Ok();
   }
 
   if (!bsec_.initialized()) {
     auto status = bsec_.init();
-    if (!status.ok()) {
+    if (!status) {
       ESP_LOGE(TAG, "BSEC init failed");
       return status;
     }
@@ -66,7 +66,7 @@ core::Status BME680Sensor::init_bsec() {
 
     // Subscribe to outputs
     status = bsec_.subscribe_all();
-    if (!status.ok()) {
+    if (!status) {
       ESP_LOGE(TAG, "BSEC subscribe failed");
       return status;
     }
@@ -75,14 +75,14 @@ core::Status BME680Sensor::init_bsec() {
   }
 
   initialized_ = true;
-  return ESP_OK;
+  return core::Ok();
 }
 
 core::Result<std::span<const Measurement>> BME680Sensor::read() {
   if (!initialized_) {
     auto status = init_bsec();
-    if (!status.ok()) {
-      return status.error();
+    if (!status) {
+      return core::Err(status.error());
     }
   }
 
@@ -109,8 +109,8 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
   // Read raw sensor data
   std::array<uint8_t, sizeof(driver::bme680::SensorData)> buffer{};
   auto read_result = driver_.read(buffer);
-  if (!read_result.ok()) {
-    return read_result.error();
+  if (!read_result) {
+    return core::Err(read_result.error());
   }
 
   driver::bme680::SensorData raw{};
@@ -124,7 +124,7 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
 
   auto I = [](Idx i) { return static_cast<size_t>(i); };
 
-  if (!bsec_result.ok()) {
+  if (!bsec_result) {
     // Fall back to raw values
     store(I(Idx::Temperature), MeasurementId::Temperature, raw.temperature);
     store(I(Idx::Humidity), MeasurementId::Humidity, raw.humidity);
@@ -136,7 +136,7 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
     return get_measurements();
   }
 
-  last_output_ = bsec_result.value();
+  last_output_ = *bsec_result;
 
   // Store BSEC-processed measurements
   store(I(Idx::Temperature), MeasurementId::Temperature,
@@ -161,7 +161,7 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
 core::Status BME680Sensor::sleep() {
   // Nothing to do if not initialized
   if (!initialized_) {
-    return ESP_OK;
+    return core::Ok();
   }
   (void)save_state(); // Save state before sleep
   return driver_.close();

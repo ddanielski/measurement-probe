@@ -77,13 +77,13 @@ public:
   [[nodiscard]] Status init() {
     for (auto &backend : backends_) {
       if (backend != nullptr) {
-        if (auto err = backend->init(); !err.ok()) {
+        if (auto err = backend->init(); !err) {
           return err;
         }
       }
     }
     initialized_ = true;
-    return Status{};
+    return Ok();
   }
 
   /// Check if manager is initialized

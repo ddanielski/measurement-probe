@@ -59,7 +59,7 @@ public:
     size_t size = 0;
     if (auto err = nvs_get_blob(handle_, make_key(key).data(), nullptr, &size);
         err != ESP_OK) {
-      return err;
+      return Err(err);
     }
     return size;
   }
@@ -67,20 +67,23 @@ public:
   [[nodiscard]] Status get_blob(std::string_view key,
                                 std::span<uint8_t> buffer) override {
     size_t size = buffer.size();
-    return nvs_get_blob(handle_, make_key(key).data(), buffer.data(), &size);
+    esp_err_t err =
+        nvs_get_blob(handle_, make_key(key).data(), buffer.data(), &size);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
 
   [[nodiscard]] Status set_blob(std::string_view key,
                                 std::span<const uint8_t> data) override {
-    return nvs_set_blob(handle_, make_key(key).data(), data.data(),
-                        data.size());
+    esp_err_t err =
+        nvs_set_blob(handle_, make_key(key).data(), data.data(), data.size());
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
 
   [[nodiscard]] Result<size_t> get_string_size(std::string_view key) override {
     size_t size = 0;
     if (auto err = nvs_get_str(handle_, make_key(key).data(), nullptr, &size);
         err != ESP_OK) {
-      return err;
+      return Err(err);
     }
     return size;
   }
@@ -88,13 +91,16 @@ public:
   [[nodiscard]] Status get_string(std::string_view key,
                                   std::span<char> buffer) override {
     size_t size = buffer.size();
-    return nvs_get_str(handle_, make_key(key).data(), buffer.data(), &size);
+    esp_err_t err =
+        nvs_get_str(handle_, make_key(key).data(), buffer.data(), &size);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
 
   /// @pre value must be null-terminated
   [[nodiscard]] Status set_string(std::string_view key,
                                   std::string_view value) override {
-    return nvs_set_str(handle_, make_key(key).data(), value.data());
+    esp_err_t err = nvs_set_str(handle_, make_key(key).data(), value.data());
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
 
   [[nodiscard]] bool contains(std::string_view key) override {
@@ -103,72 +109,88 @@ public:
   }
 
   [[nodiscard]] Status erase(std::string_view key) override {
-    return nvs_erase_key(handle_, make_key(key).data());
+    esp_err_t err = nvs_erase_key(handle_, make_key(key).data());
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
 
-  [[nodiscard]] Status commit() override { return nvs_commit(handle_); }
+  [[nodiscard]] Status commit() override {
+    esp_err_t err = nvs_commit(handle_);
+    return (err == ESP_OK) ? Ok() : Err(err);
+  }
 
 protected:
   Result<int8_t> get_i8(std::string_view key) override {
-    int8_t v{};
-    if (auto e = nvs_get_i8(handle_, make_key(key).data(), &v); e != ESP_OK) {
-      return e;
+    int8_t val{};
+    if (auto err = nvs_get_i8(handle_, make_key(key).data(), &val);
+        err != ESP_OK) {
+      return Err(err);
     }
-    return v;
+    return val;
   }
   Result<uint8_t> get_u8(std::string_view key) override {
-    uint8_t v{};
-    if (auto e = nvs_get_u8(handle_, make_key(key).data(), &v); e != ESP_OK) {
-      return e;
+    uint8_t val{};
+    if (auto err = nvs_get_u8(handle_, make_key(key).data(), &val);
+        err != ESP_OK) {
+      return Err(err);
     }
-    return v;
+    return val;
   }
   Result<int16_t> get_i16(std::string_view key) override {
-    int16_t v{};
-    if (auto e = nvs_get_i16(handle_, make_key(key).data(), &v); e != ESP_OK) {
-      return e;
+    int16_t val{};
+    if (auto err = nvs_get_i16(handle_, make_key(key).data(), &val);
+        err != ESP_OK) {
+      return Err(err);
     }
-    return v;
+    return val;
   }
   Result<uint16_t> get_u16(std::string_view key) override {
-    uint16_t v{};
-    if (auto e = nvs_get_u16(handle_, make_key(key).data(), &v); e != ESP_OK) {
-      return e;
+    uint16_t val{};
+    if (auto err = nvs_get_u16(handle_, make_key(key).data(), &val);
+        err != ESP_OK) {
+      return Err(err);
     }
-    return v;
+    return val;
   }
   Result<int32_t> get_i32(std::string_view key) override {
-    int32_t v{};
-    if (auto e = nvs_get_i32(handle_, make_key(key).data(), &v); e != ESP_OK) {
-      return e;
+    int32_t val{};
+    if (auto err = nvs_get_i32(handle_, make_key(key).data(), &val);
+        err != ESP_OK) {
+      return Err(err);
     }
-    return v;
+    return val;
   }
   Result<uint32_t> get_u32(std::string_view key) override {
-    uint32_t v{};
-    if (auto e = nvs_get_u32(handle_, make_key(key).data(), &v); e != ESP_OK) {
-      return e;
+    uint32_t val{};
+    if (auto err = nvs_get_u32(handle_, make_key(key).data(), &val);
+        err != ESP_OK) {
+      return Err(err);
     }
-    return v;
+    return val;
   }
 
   Status set_i8(std::string_view key, int8_t value) override {
-    return nvs_set_i8(handle_, make_key(key).data(), value);
+    esp_err_t err = nvs_set_i8(handle_, make_key(key).data(), value);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
   Status set_u8(std::string_view key, uint8_t value) override {
-    return nvs_set_u8(handle_, make_key(key).data(), value);
+    esp_err_t err = nvs_set_u8(handle_, make_key(key).data(), value);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
   Status set_i16(std::string_view key, int16_t value) override {
-    return nvs_set_i16(handle_, make_key(key).data(), value);
+    esp_err_t err = nvs_set_i16(handle_, make_key(key).data(), value);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
   Status set_u16(std::string_view key, uint16_t value) override {
-    return nvs_set_u16(handle_, make_key(key).data(), value);
+    esp_err_t err = nvs_set_u16(handle_, make_key(key).data(), value);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
   Status set_i32(std::string_view key, int32_t value) override {
-    return nvs_set_i32(handle_, make_key(key).data(), value);
+    esp_err_t err = nvs_set_i32(handle_, make_key(key).data(), value);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
   Status set_u32(std::string_view key, uint32_t value) override {
-    return nvs_set_u32(handle_, make_key(key).data(), value);
+    esp_err_t err = nvs_set_u32(handle_, make_key(key).data(), value);
+    return (err == ESP_OK) ? Ok() : Err(err);
   }
 
 private:
@@ -198,7 +220,7 @@ public:
 
   [[nodiscard]] Status init() override {
     if (initialized_) {
-      return Status{};
+      return Ok();
     }
 
     esp_err_t err = nvs_flash_init();
@@ -206,17 +228,17 @@ public:
         err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       err = nvs_flash_erase();
       if (err != ESP_OK) {
-        return err;
+        return Err(err);
       }
       err = nvs_flash_init();
     }
 
     if (err != ESP_OK) {
-      return err;
+      return Err(err);
     }
 
     initialized_ = true;
-    return Status{};
+    return Ok();
   }
 
   [[nodiscard]] bool is_ready() const override { return initialized_; }
