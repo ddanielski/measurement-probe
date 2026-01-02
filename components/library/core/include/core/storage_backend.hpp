@@ -19,7 +19,7 @@ namespace core {
 enum class BackendId : uint8_t { Nvs, LittleFs, Spiffs, SdCard, Count };
 
 /// Storage namespace identifier (define app-specific ones in config)
-enum class NamespaceId : uint8_t { App, Bsec, Wifi, Count };
+enum class NamespaceId : uint8_t { App, Bsec, Wifi, Measurements, Count };
 
 /// Abstract storage backend interface
 class IStorageBackend {
@@ -63,6 +63,8 @@ constexpr const char *namespace_name(NamespaceId ns) {
     return "bsec";
   case NamespaceId::Wifi:
     return "wifi";
+  case NamespaceId::Measurements:
+    return "measurements";
   default:
     return "unk";
   }

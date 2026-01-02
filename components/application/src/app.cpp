@@ -24,6 +24,7 @@ MeasurementProbe::MeasurementProbe(Board &board,
 void MeasurementProbe::run() {
   log_boot_info();
   track_boot_count();
+  test_littlefs();
 
   if (!board_.valid()) {
     ESP_LOGE(TAG, "Board not valid, halting");
@@ -37,6 +38,19 @@ void MeasurementProbe::run() {
   run_continuous_mode();
 }
 
+void MeasurementProbe::test_littlefs() {
+  // Test LittleFS storage (Measurements namespace)
+  auto &data_storage = storage(core::NamespaceId::Measurements);
+
+  // Increment a counter stored in LittleFS
+  uint32_t count = data_storage.get<uint32_t>("test_cnt").value_or(0) + 1;
+  if (data_storage.set<uint32_t>("test_cnt", count)) {
+    ESP_LOGI(TAG, "LittleFS test: count=%" PRIu32, count);
+  } else {
+    ESP_LOGE(TAG, "LittleFS write failed!");
+  }
+}
+
 void MeasurementProbe::log_boot_info() {
   auto wake = power::get_wake_reason();
   ESP_LOGI(TAG, "v%s | Wake: %s", app::config::FIRMWARE_VERSION,
@@ -47,7 +61,7 @@ void MeasurementProbe::track_boot_count() {
   auto &app_storage = storage(core::NamespaceId::App);
   auto guard = app_storage.auto_commit();
   uint32_t boots = app_storage.get<uint32_t>("boots").value_or(0) + 1;
-  if (app_storage.set<uint32_t>("boots", boots).ok()) {
+  if (app_storage.set<uint32_t>("boots", boots)) {
     ESP_LOGI(TAG, "Boot #%" PRIu32, boots);
   }
 }
@@ -74,13 +88,13 @@ void MeasurementProbe::init_sensors() {
 
 void MeasurementProbe::read_sensors() {
   auto result = sensors_.read_all();
-  if (!result.ok()) {
+  if (!result) {
     ESP_LOGE(TAG, "Sensor read failed: %s", esp_err_to_name(result.error()));
     return;
   }
 
   ESP_LOGI(TAG, "--- Sensor Readings ---");
-  for (const auto &m : result.value()) {
+  for (const auto &m : *result) {
     ESP_LOGI(TAG, "  %s: %.2f %s", m.name(), m.value, m.unit());
   }
 }

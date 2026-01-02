@@ -1,0 +1,288 @@
+# Measurement Probe - ESP32-C3 Cloud Gateway
+# ============================================
+
+## Project Overview
+- ESP32-C3 Super Mini board
+- Battery-powered measurement gateway (no display)
+- Connects to WiFi → GCP cloud via HTTPS/TLS + Protobuf
+- Transport abstraction (HTTP now, MQTT future)
+- Generic driver system for measurement ICs (starting with BME680)
+- Timer-based deep sleep for power conservation
+- C++23 with ESP-IDF wrappers
+- JWT authentication with GCP
+
+---
+
+## Phase 1: Project Foundation
+
+### 1.1 Development Environment
+- [ ] Create `.devcontainer/devcontainer.json`
+      - Base image: espressif/idf:v5.5.2
+      - Install clangd, clang-format, clang-tidy
+      - Configure ESP-IDF environment activation
+      - Add useful VS Code extensions (C/C++, clangd, ESP-IDF)
+- [ ] Create `.clang-format` (LLVM style base, customized)
+- [ ] Create `.clangd` configuration for ESP-IDF includes
+- [ ] Create `compile_commands.json` generation script
+- [ ] Setup GitHub Actions CI pipeline (build + format check)
+
+### 1.2 ESP-IDF Project Structure
+- [ ] Initialize ESP-IDF project with CMake
+- [ ] Create directory structure (3-layer architecture):
+      ```
+      /main                          # APPLICATION LAYER (project-specific)
+        app_config.hpp               # WiFi creds, endpoints, GCP config
+        measurements.hpp             # Sensor selection, intervals
+        main.cpp                     # Entry point, orchestration
+      
+      /components
+        /driver                      # DRIVER LAYER (low-level → interface)
+          /bme680                    # BME680 sensor driver
+          /i2c                       # I²C bus abstraction
+          /gpio                      # GPIO abstraction
+          (future: git submodules)
+        
+        /library                     # LIBRARY LAYER (reusable, plug-and-play)
+          /core                      # C++23 ESP-IDF wrappers
+          /network                   # WiFi manager, transport abstractions
+          /protocol                  # Protobuf, message queue
+          /power                     # Sleep strategies, power management
+      
+      /proto                         # .proto files (shared schemas)
+      ```
+- [ ] Configure `sdkconfig.defaults` for ESP32-C3
+      - Enable C++23 (GCC 13+)
+      - Disable unused peripherals
+      - Configure power management
+- [ ] Create partition table (NVS, OTA slots, app)
+
+---
+
+## Phase 2: Core C++23 Wrappers
+
+### 2.1 RAII Wrappers for ESP-IDF
+- [ ] `esp::Mutex` - FreeRTOS mutex wrapper
+- [ ] `esp::Semaphore` - Counting/binary semaphore
+- [ ] `esp::Task` - Task wrapper with std::function support
+- [ ] `esp::Timer` - esp_timer wrapper
+- [ ] `esp::EventLoop` - Event loop abstraction
+- [ ] `esp::NVS` - Non-volatile storage wrapper
+- [ ] `esp::GPIO` - Type-safe GPIO abstraction
+
+### 2.2 Modern C++ Utilities
+- [ ] `Result<T, E>` - Error handling (std::expected alternative)
+- [ ] `Span<T>` - Safe buffer views
+- [ ] Compile-time string utilities
+- [ ] Static polymorphism helpers (CRTP base classes)
+
+### 2.3 Hardware Abstraction
+- [ ] `I2CMaster` - I²C bus manager with device enumeration
+- [ ] `SPIMaster` - SPI bus manager
+- [ ] `UARTPort` - UART abstraction (if needed)
+
+---
+
+## Phase 3: Generic Driver Framework
+
+### 3.1 Driver Architecture
+- [ ] Design `ISensor` interface:
+      ```cpp
+      struct SensorReading {
+          uint32_t timestamp;
+          SensorType type;
+          std::variant<float, int32_t, bytes> value;
+          std::optional<SensorMetadata> meta;
+      };
+      
+      class ISensor {
+          virtual SensorType type() const = 0;
+          virtual Result<SensorReading> read() = 0;
+          virtual void sleep() = 0;
+          virtual void wake() = 0;
+          virtual Duration min_interval() const = 0;
+      };
+      ```
+- [ ] Create `SensorRegistry` - Runtime driver registration
+- [ ] Create `SensorScheduler` - Manages read intervals per sensor
+- [ ] Implement driver auto-discovery via I²C scan
+
+### 3.2 Driver Implementations
+- [ ] Template driver implementation guide
+- [ ] Mock sensor for testing/development
+- [ ] **BME680 driver** (PRIMARY):
+      - Temperature (°C)
+      - Humidity (% RH)
+      - Pressure (hPa)
+      - Gas resistance (Ω) → IAQ index via BSEC
+      - Forced mode for power efficiency
+      - Bosch BSEC library integration (confirmed):
+        - Indoor Air Quality (IAQ) index calculation
+        - Automatic sensor calibration
+        - Note: BSEC is closed-source, requires state persistence in NVS
+
+---
+
+## Phase 4: Protocol Layer (Protobuf)
+
+### 4.1 Protobuf Setup
+- [ ] Integrate nanopb (lightweight protobuf for embedded)
+- [ ] Define `.proto` schema:
+      - `SensorData.proto` - measurement payloads
+      - `DeviceInfo.proto` - device metadata
+      - `Command.proto` - cloud → device commands
+      - `Response.proto` - device → cloud responses
+- [ ] Generate C++ bindings with nanopb
+- [ ] Create encoding/decoding helpers
+
+### 4.2 Message Queue
+- [ ] Ring buffer for outgoing messages (survives failed sends)
+- [ ] Priority levels (immediate vs batched)
+- [ ] Persistence to NVS for power-loss recovery
+
+---
+
+## Phase 5: Network & Cloud
+
+### 5.1 WiFi Management
+- [ ] WiFi connection manager with:
+      - Credential storage in NVS
+      - Auto-reconnect with exponential backoff
+      - Connection state machine
+      - Power-efficient scanning
+- [ ] Provisioning via Improv WiFi over BLE:
+      - Standardized protocol (Home Assistant/ESPHome)
+      - Secure (BLE encryption, no broadcast)
+      - Compatible with existing mobile apps
+
+### 5.2 Transport Abstraction Layer
+- [ ] Design `ITransport` interface:
+      ```cpp
+      class ITransport {
+          virtual Result<void> connect() = 0;
+          virtual Result<void> disconnect() = 0;
+          virtual Result<void> send(Topic, Payload) = 0;
+          virtual Result<Payload> receive(Timeout) = 0;  // For command polling
+          virtual bool is_connected() const = 0;
+      };
+      ```
+- [ ] `HttpsTransport` implementation (PRIMARY - for learning exercise):
+      - esp-tls for TLS 1.3
+      - REST endpoints: POST /telemetry, GET /commands
+      - Connection pooling / keep-alive where beneficial
+      - Retry with exponential backoff
+- [ ] `MqttTransport` implementation (FUTURE):
+      - esp-mqtt wrapper
+      - Pub/Sub topic structure
+      - QoS levels support
+- [ ] Transport factory for runtime selection
+
+### 5.3 GCP Integration
+- [ ] JWT token generation for GCP auth:
+      - ES256 (ECDSA P-256) signing on-device
+      - Token refresh before expiry
+      - Private key storage (NVS encrypted or embedded)
+- [ ] GCP endpoints:
+      - Cloud Functions / Cloud Run for HTTP ingestion
+      - Pub/Sub for message routing (server-side)
+- [ ] Device identity management:
+      - Unique device ID (from ESP32 MAC or provisioned)
+      - Device registry concept
+
+### 5.4 Command Handler
+- [ ] Poll-based command retrieval (for HTTP):
+      - Check for pending commands on each wake cycle
+      - Command types: immediate read, config update, OTA, restart
+- [ ] Response formatting with correlation IDs
+- [ ] Command acknowledgment
+
+---
+
+## Phase 6: Power Management
+
+### 6.1 Sleep Strategy
+- [ ] Design `ISleepStrategy` interface (for future flexibility):
+      ```cpp
+      class ISleepStrategy {
+          virtual void enter_sleep() = 0;
+          virtual WakeReason get_wake_reason() = 0;
+          virtual void configure(SleepConfig) = 0;
+      };
+      ```
+- [ ] **TimerDeepSleep** implementation (PRIMARY):
+      - Configurable interval (default: 5 minutes)
+      - RTC memory for state preservation
+      - Fast boot path (skip full init on timer wake)
+- [ ] GPIODeepSleep implementation (FUTURE):
+      - External interrupt from sensors
+      - Useful for threshold-based alerts
+- [ ] Light sleep for WiFi keep-alive scenarios (FUTURE)
+- [ ] Power state machine:
+      ```
+      BOOT → INIT → MEASURE → TRANSMIT → SLEEP
+                 ↑__________________________|
+      ```
+
+### 6.2 Power Optimizations
+- [ ] Batch measurements before transmission
+- [ ] Dynamic WiFi DTIM interval
+- [ ] CPU frequency scaling
+- [ ] Peripheral power gating
+- [ ] Battery voltage monitoring (ADC)
+- [ ] Low battery shutdown threshold
+
+---
+
+## Phase 7: OTA & Maintenance
+
+### 7.1 Over-the-Air Updates
+- [ ] OTA partition scheme (A/B slots)
+- [ ] Secure OTA from GCP Cloud Storage
+- [ ] Rollback on boot failure
+- [ ] Version reporting to cloud
+
+### 7.2 Diagnostics
+- [ ] Health metrics (heap, uptime, reset reason)
+- [ ] Error logging to NVS (limited circular buffer)
+- [ ] Remote diagnostic mode
+
+---
+
+## Phase 8: Testing & Quality
+
+### 8.1 Testing Strategy
+- [ ] Unit tests (host-based with mocks)
+- [ ] Integration tests on hardware
+- [ ] Power consumption profiling
+- [ ] Long-term stability testing
+
+### 8.2 Documentation
+- [ ] Architecture documentation
+- [ ] Driver development guide
+- [ ] Cloud setup guide (GCP Pub/Sub, IAM)
+- [ ] Hardware BOM and wiring
+
+---
+
+## Decisions Made ✓
+
+- [x] **Transport**: HTTPS with TLS (primary), MQTT (future) - abstracted via ITransport
+- [x] **Sleep strategy**: Timer-based deep sleep (primary), GPIO (future) - abstracted via ISleepStrategy
+- [x] **OTA**: Yes, include OTA support with A/B partitions
+- [x] **Initial sensor**: BME680 (temp, humidity, pressure, gas/VOC) + BSEC library for IAQ
+- [x] **Auth**: JWT with ES256 signing (GCP recommended approach)
+- [x] **Sleep interval**: 5 minutes default, cloud-configurable
+- [x] **Battery**: CR123A (3V lithium, ~1500mAh, non-rechargeable)
+      - Ultra-low power is critical
+      - Compact form factor for AMS enclosure
+- [x] **Provisioning**: Improv WiFi over BLE (secure, standardized, app support)
+
+---
+
+## Nice-to-Have (Future)
+
+- [ ] BLE fallback when WiFi unavailable
+- [ ] Local data caching during extended offline
+- [ ] Mesh networking with other probes
+- [ ] Edge ML for anomaly detection
+- [ ] Power harvesting support (solar)
+

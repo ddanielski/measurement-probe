@@ -72,7 +72,7 @@ public:
     } else if constexpr (std::is_enum_v<T>) {
       auto r = get<std::underlying_type_t<T>>(key);
       if (!r) {
-        return r.error();
+        return Err(r.error());
       }
       return static_cast<T>(*r);
     } else {

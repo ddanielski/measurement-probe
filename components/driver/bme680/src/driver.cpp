@@ -38,13 +38,13 @@ BME680Driver::~BME680Driver() {
 
 core::Status BME680Driver::open() {
   if (!device_ || !device_->valid()) {
-    return ESP_ERR_INVALID_STATE;
+    return core::Err(ESP_ERR_INVALID_STATE);
   }
 
   int8_t rslt = bme68x_init(&dev_);
   if (rslt != BME68X_OK) {
     ESP_LOGE(TAG, "bme68x_init failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   ESP_LOGI(TAG, "Chip ID: 0x%02X, Variant: %s", dev_.chip_id,
@@ -53,57 +53,57 @@ core::Status BME680Driver::open() {
   // Apply default configuration
   Config default_config{};
   auto status = configure_impl(default_config);
-  if (!status.ok()) {
+  if (!status) {
     return status;
   }
 
   is_open_ = true;
-  return ESP_OK;
+  return core::Ok();
 }
 
 core::Status BME680Driver::close() {
   if (!is_open_) {
-    return ESP_OK;
+    return core::Ok();
   }
 
   bme68x_set_op_mode(BME68X_SLEEP_MODE, &dev_);
   is_open_ = false;
-  return ESP_OK;
+  return core::Ok();
 }
 
 core::Result<size_t> BME680Driver::read(std::span<uint8_t> buffer) {
   if (buffer.size() < sizeof(SensorData)) {
-    return ESP_ERR_INVALID_SIZE;
+    return core::Err(ESP_ERR_INVALID_SIZE);
   }
 
   // Self-managing: open if not already open
   if (!is_open_) {
     auto status = open();
-    if (!status.ok()) {
-      return status.error();
+    if (!status) {
+      return core::Err(status.error());
     }
   }
 
   auto result = read_data_impl();
-  if (!result.ok()) {
-    return result.error();
+  if (!result) {
+    return core::Err(result.error());
   }
 
-  std::memcpy(buffer.data(), &result.value(), sizeof(SensorData));
+  std::memcpy(buffer.data(), &(*result), sizeof(SensorData));
   return sizeof(SensorData);
 }
 
 core::Result<size_t> BME680Driver::write(std::span<const uint8_t> data) {
   (void)data;
-  return ESP_ERR_NOT_SUPPORTED;
+  return core::Err(ESP_ERR_NOT_SUPPORTED);
 }
 
 core::Result<std::any> BME680Driver::ioctl(uint32_t cmd, std::any arg) {
   // Self-managing: open if not already open
   if (!is_open_) {
     auto status = open();
-    if (!status.ok()) {
-      return status.error();
+    if (!status) {
+      return core::Err(status.error());
     }
   }
 
@@ -112,21 +112,21 @@ core::Result<std::any> BME680Driver::ioctl(uint32_t cmd, std::any arg) {
   switch (command) {
   case IoctlCmd::Configure: {
     if (!arg.has_value()) {
-      return ESP_ERR_INVALID_ARG;
+      return core::Err(ESP_ERR_INVALID_ARG);
     }
     const auto *config = std::any_cast<const Config *>(arg);
     if (config == nullptr) {
-      return ESP_ERR_INVALID_ARG;
+      return core::Err(ESP_ERR_INVALID_ARG);
     }
     auto status = configure_impl(*config);
-    return status.ok() ? core::Result<std::any>(std::any{})
-                       : core::Result<std::any>(status.error());
+    return status ? core::Result<std::any>(std::any{})
+                  : core::Err(status.error());
   }
 
   case IoctlCmd::TriggerMeasurement: {
     auto status = trigger_measurement_impl();
-    return status.ok() ? core::Result<std::any>(std::any{})
-                       : core::Result<std::any>(status.error());
+    return status ? core::Result<std::any>(std::any{})
+                  : core::Err(status.error());
   }
 
   case IoctlCmd::GetMeasurementDuration: {
@@ -143,14 +143,14 @@ core::Result<std::any> BME680Driver::ioctl(uint32_t cmd, std::any arg) {
 
   case IoctlCmd::ReadData: {
     auto result = read_data_impl();
-    if (!result.ok()) {
-      return result.error();
+    if (!result) {
+      return core::Err(result.error());
     }
-    return std::any(result.value());
+    return std::any(*result);
   }
 
   default:
-    return ESP_ERR_NOT_SUPPORTED;
+    return core::Err(ESP_ERR_NOT_SUPPORTED);
   }
 }
 // Private implementations
@@ -165,7 +165,7 @@ core::Status BME680Driver::configure_impl(const Config &config) {
   int8_t rslt = bme68x_set_conf(&conf_, &dev_);
   if (rslt != BME68X_OK) {
     ESP_LOGE(TAG, "bme68x_set_conf failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   if (config.enable_gas) {
@@ -176,23 +176,23 @@ core::Status BME680Driver::configure_impl(const Config &config) {
     rslt = bme68x_set_heatr_conf(BME68X_FORCED_MODE, &heatr_conf_, &dev_);
     if (rslt != BME68X_OK) {
       ESP_LOGE(TAG, "bme68x_set_heatr_conf failed: %d", rslt);
-      return ESP_FAIL;
+      return core::Err(ESP_FAIL);
     }
   } else {
     heatr_conf_.enable = BME68X_DISABLE;
     bme68x_set_heatr_conf(BME68X_FORCED_MODE, &heatr_conf_, &dev_);
   }
 
-  return ESP_OK;
+  return core::Ok();
 }
 
 core::Status BME680Driver::trigger_measurement_impl() {
   int8_t rslt = bme68x_set_op_mode(BME68X_FORCED_MODE, &dev_);
   if (rslt != BME68X_OK) {
     ESP_LOGE(TAG, "bme68x_set_op_mode failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
-  return ESP_OK;
+  return core::Ok();
 }
 
 std::chrono::microseconds BME680Driver::measurement_duration_impl() {
@@ -204,8 +204,8 @@ std::chrono::microseconds BME680Driver::measurement_duration_impl() {
 core::Result<SensorData> BME680Driver::read_data_impl() {
   // Trigger measurement
   auto status = trigger_measurement_impl();
-  if (!status.ok()) {
-    return status.error();
+  if (!status) {
+    return core::Err(status.error());
   }
 
   // Wait for measurement
@@ -220,11 +220,11 @@ core::Result<SensorData> BME680Driver::read_data_impl() {
   int8_t rslt = bme68x_get_data(BME68X_FORCED_MODE, &data, &n_fields, &dev_);
   if (rslt != BME68X_OK) {
     ESP_LOGE(TAG, "bme68x_get_data failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   if (n_fields == 0) {
-    return ESP_ERR_NOT_FOUND;
+    return core::Err(ESP_ERR_NOT_FOUND);
   }
 
   SensorData result{};

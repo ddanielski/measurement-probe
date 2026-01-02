@@ -1,65 +1,44 @@
 /**
  * @file result.hpp
- * @brief Result type wrapping esp_err_t
+ * @brief Result type using std::expected for type-safe error handling
+ *
+ * Usage:
+ *   Status foo() {
+ *     if (error) return Err(ESP_FAIL);
+ *     return Ok();
+ *   }
+ *
+ *   Result<int> bar() {
+ *     if (error) return Err(ESP_FAIL);
+ *     return 42;  // or Ok(42)
+ *   }
  */
 
 #pragma once
 
 #include <esp_err.h>
 
-#include <type_traits>
-#include <utility>
+#include <expected>
 
 namespace core {
 
-/// Result type for failable operations
-template <typename T> class Result {
-public:
-  Result(const T &value) : value_(value), error_(ESP_OK) {}
-  Result(T &&value) : value_(std::move(value)), error_(ESP_OK) {}
+/// Result type for failable operations - uses std::expected for type safety
+template <typename T> using Result = std::expected<T, esp_err_t>;
 
-  Result(esp_err_t err) : value_{}, error_(err) {
-    if (err == ESP_OK)
-      error_ = ESP_FAIL;
-  }
+/// Status type for operations that don't return a value
+using Status = std::expected<void, esp_err_t>;
 
-  [[nodiscard]] bool ok() const noexcept { return error_ == ESP_OK; }
-  [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
-  [[nodiscard]] esp_err_t error() const noexcept { return error_; }
+/// Create a success Status (void result)
+[[nodiscard]] inline Status Ok() { return {}; }
 
-  [[nodiscard]] T &value() & noexcept { return value_; }
-  [[nodiscard]] const T &value() const & noexcept { return value_; }
-  [[nodiscard]] T &&value() && noexcept { return std::move(value_); }
+/// Create a success Result with value
+template <typename T> [[nodiscard]] Result<T> Ok(T &&value) {
+  return std::forward<T>(value);
+}
 
-  [[nodiscard]] T *operator->() noexcept { return &value_; }
-  [[nodiscard]] const T *operator->() const noexcept { return &value_; }
-  [[nodiscard]] T &operator*() & noexcept { return value_; }
-  [[nodiscard]] const T &operator*() const & noexcept { return value_; }
-  [[nodiscard]] T &&operator*() && noexcept { return std::move(value_); }
-
-  template <typename U> [[nodiscard]] T value_or(U &&default_val) const & {
-    return ok() ? value_ : static_cast<T>(std::forward<U>(default_val));
-  }
-
-private:
-  T value_;
-  esp_err_t error_;
-};
-
-/// Specialization for void
-template <> class Result<void> {
-public:
-  Result() : error_(ESP_OK) {}
-  Result(esp_err_t err) : error_(err) {}
-
-  [[nodiscard]] bool ok() const noexcept { return error_ == ESP_OK; }
-  [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
-  [[nodiscard]] esp_err_t error() const noexcept { return error_; }
-
-private:
-  esp_err_t error_;
-};
-
-using Status = Result<void>;
+/// Create an error (works for both Status and Result<T>)
+[[nodiscard]] inline std::unexpected<esp_err_t> Err(esp_err_t err) {
+  return std::unexpected(err);
+}
 
 } // namespace core

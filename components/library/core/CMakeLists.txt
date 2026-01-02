@@ -10,6 +10,7 @@ idf_component_register(
         esp_event
         nvs_flash
         esp_driver_gpio
+        littlefs
 )
 
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_23)

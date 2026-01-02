@@ -24,7 +24,7 @@ core::Status BsecWrapper::init() {
   bsec_library_return_t rslt = bsec_init();
   if (rslt != BSEC_OK) {
     ESP_LOGE(TAG, "bsec_init failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   // Get version
@@ -40,17 +40,17 @@ core::Status BsecWrapper::init() {
                                 work_buffer_.data(), work_buffer_.size());
   if (rslt != BSEC_OK) {
     ESP_LOGE(TAG, "bsec_set_configuration failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
   ESP_LOGI(TAG, "BSEC config loaded (LP mode, 3s)");
 
   initialized_ = true;
-  return ESP_OK;
+  return core::Ok();
 }
 
 core::Status BsecWrapper::subscribe_all() {
   if (!initialized_) {
-    return ESP_ERR_INVALID_STATE;
+    return core::Err(ESP_ERR_INVALID_STATE);
   }
 
   // Use sample rate from generated config (LP = 3s, ULP = 300s)
@@ -82,7 +82,7 @@ core::Status BsecWrapper::subscribe_all() {
 
   if (rslt < BSEC_OK) { // Only negative values are errors
     ESP_LOGE(TAG, "bsec_update_subscription failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
   if (rslt > BSEC_OK) {
     ESP_LOGW(TAG, "bsec_update_subscription warning: %d", rslt);
@@ -90,7 +90,7 @@ core::Status BsecWrapper::subscribe_all() {
 
   ESP_LOGI(TAG, "Subscribed to %zu outputs, requires %d physical sensors",
            requested.size(), n_required);
-  return ESP_OK;
+  return core::Ok();
 }
 
 BsecSensorSettings BsecWrapper::get_sensor_settings(int64_t time_ns) const {
@@ -126,7 +126,7 @@ core::Result<BsecOutput> BsecWrapper::process(int64_t time_ns,
                                               float gas_resistance,
                                               bool gas_valid) const {
   if (!initialized_) {
-    return ESP_ERR_INVALID_STATE;
+    return core::Err(ESP_ERR_INVALID_STATE);
   }
 
   // Build BSEC inputs
@@ -163,7 +163,7 @@ core::Result<BsecOutput> BsecWrapper::process(int64_t time_ns,
 
   if (rslt != BSEC_OK) {
     ESP_LOGE(TAG, "bsec_do_steps failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   // Parse outputs
@@ -211,7 +211,7 @@ const char *BsecWrapper::version() const { return version_str_.data(); }
 
 core::Status BsecWrapper::save_state(core::IStorage &storage) {
   if (!initialized_) {
-    return ESP_ERR_INVALID_STATE;
+    return core::Err(ESP_ERR_INVALID_STATE);
   }
 
   std::array<uint8_t, STATE_SIZE> state{};
@@ -223,12 +223,12 @@ core::Status BsecWrapper::save_state(core::IStorage &storage) {
 
   if (rslt != BSEC_OK) {
     ESP_LOGE(TAG, "bsec_get_state failed: %d", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   // Store as blob
   auto result = storage.set_blob(STATE_KEY, std::span{state.data(), n_state});
-  if (result.ok()) {
+  if (result) {
     ESP_LOGI(TAG, "Saved BSEC state (%lu bytes)",
              static_cast<unsigned long>(n_state));
   }
@@ -237,25 +237,25 @@ core::Status BsecWrapper::save_state(core::IStorage &storage) {
 
 core::Status BsecWrapper::load_state(core::IStorage &storage) {
   if (!initialized_) {
-    return ESP_ERR_INVALID_STATE;
+    return core::Err(ESP_ERR_INVALID_STATE);
   }
 
   // Get blob size first
   auto size_result = storage.get_blob_size(STATE_KEY);
-  if (!size_result.ok()) {
+  if (!size_result) {
     ESP_LOGI(TAG, "No saved BSEC state found");
-    return ESP_OK; // Not an error, just no saved state
+    return core::Ok(); // Not an error, just no saved state
   }
 
-  size_t n_state = size_result.value();
+  size_t n_state = *size_result;
   if (n_state > STATE_SIZE) {
     ESP_LOGW(TAG, "BSEC state too large: %zu", n_state);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   std::array<uint8_t, STATE_SIZE> state{};
   auto status = storage.get_blob(STATE_KEY, std::span{state.data(), n_state});
-  if (!status.ok()) {
+  if (!status) {
     ESP_LOGW(TAG, "Failed to read BSEC state");
     return status;
   }
@@ -265,11 +265,11 @@ core::Status BsecWrapper::load_state(core::IStorage &storage) {
 
   if (rslt != BSEC_OK) {
     ESP_LOGW(TAG, "bsec_set_state failed: %d (state may be stale)", rslt);
-    return ESP_FAIL;
+    return core::Err(ESP_FAIL);
   }
 
   ESP_LOGI(TAG, "Loaded BSEC state (%zu bytes)", n_state);
-  return ESP_OK;
+  return core::Ok();
 }
 
 } // namespace sensor::bme680

@@ -14,6 +14,7 @@ components/external/bsec2/lib/
 components/external/bsec2/include/bsec_*.h
 components/external/bme68x_api/src/
 components/external/bme68x_api/include/
+managed_components/**
 
 # IDE
 .vscode/*
@@ -49,3 +50,4 @@ venv/
 # Temporary files
 *.tmp
 *.bak
+dependencies.lock

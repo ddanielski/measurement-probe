@@ -33,7 +33,7 @@ extern "C" void app_main() {
   application::MeasurementProbe app(
       board, std::chrono::seconds(app::config::SLEEP_INTERVAL_SEC));
 
-  if (auto err = app.start(); !err.ok()) {
+  if (auto err = app.start(); !err) {
     ESP_LOGE(TAG, "App failed: %s", esp_err_to_name(err.error()));
   }
 }

@@ -1,0 +1,7 @@
+## IDF Component Manager manifest
+## https://docs.espressif.com/projects/idf-component-manager/en/latest/
+
+dependencies:
+  # LittleFS filesystem support (ESP-IDF VFS wrapper)
+  # https://components.espressif.com/components/joltwallet/littlefs
+  joltwallet/littlefs: "^1.20"
