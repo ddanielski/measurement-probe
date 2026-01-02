@@ -5,3 +5,7 @@ dependencies:
   # LittleFS filesystem support (ESP-IDF VFS wrapper)
   # https://components.espressif.com/components/joltwallet/littlefs
   joltwallet/littlefs: "^1.20"
+
+  # Protocol Buffers for embedded systems (static allocation)
+  # https://components.espressif.com/components/nikas-belogolov/nanopb
+  nikas-belogolov/nanopb: "^1.0.0"

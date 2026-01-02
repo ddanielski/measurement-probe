@@ -35,6 +35,14 @@ RUN . /opt/esp/idf/export.sh \
     && idf_tools.py install esp-clang \
     && idf_tools.py install-python-env
 
+# =============================================================================
+# Install Python packages for protobuf generation
+# =============================================================================
+# grpcio-tools provides protoc compiler
+# nanopb provides nanopb_generator for embedded protobuf
+RUN . /opt/esp/idf/export.sh \
+    && pip install --no-cache-dir grpcio-tools nanopb
+
 # Create stable symlink for esp-clang - find the actual clangd and work backwards
 RUN CLANGD_PATH=$(find /opt/esp/tools -name "clangd" -type f 2>/dev/null | head -1) \
     && if [ -n "$CLANGD_PATH" ]; then \

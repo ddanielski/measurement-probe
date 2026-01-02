@@ -1,0 +1,40 @@
+/**
+ * Measurement protobuf schema for sensor data serialization.
+ *
+ * Uses a single MeasurementBatch to store all readings from all sensors.
+ * Only the batch message is used for storage/transmission.
+ */
+
+syntax = "proto3";
+
+package sensor;
+
+/**
+ * A single sensor measurement with typed value.
+ * Used only as part of MeasurementBatch (not stored individually).
+ */
+message Measurement {
+  // Measurement type identifier (maps to MeasurementId enum)
+  uint32 id = 1;
+
+  // Typed value - only one is set at a time
+  oneof value {
+    float float_val = 2;
+    double double_val = 3;
+    int32 int32_val = 4;
+    int64 int64_val = 5;
+    uint32 uint32_val = 6;
+    uint64 uint64_val = 7;
+    bool bool_val = 8;
+  }
+}
+
+/**
+ * Batch of measurements from all sensors at a point in time.
+ * This is the primary message for transmission.
+ * Timestamp is included as a Measurement with id=Timestamp.
+ */
+message MeasurementBatch {
+  // All measurements from all sensors (including timestamp as measurement)
+  repeated Measurement measurements = 1;
+}

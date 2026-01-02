@@ -126,28 +126,28 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
 
   if (!bsec_result) {
     // Fall back to raw values
-    store(I(Idx::Temperature), MeasurementId::Temperature, raw.temperature);
-    store(I(Idx::Humidity), MeasurementId::Humidity, raw.humidity);
-    store(I(Idx::Pressure), MeasurementId::Pressure, raw.pressure);
-    store(I(Idx::IAQ), MeasurementId::IAQ, 0.0F);
-    store(I(Idx::IAQAccuracy), MeasurementId::IAQAccuracy, 0.0F);
-    store(I(Idx::CO2), MeasurementId::CO2, 0.0F);
-    store(I(Idx::VOC), MeasurementId::VOC, 0.0F);
+    store<MeasurementId::Temperature>(I(Idx::Temperature), raw.temperature);
+    store<MeasurementId::Humidity>(I(Idx::Humidity), raw.humidity);
+    store<MeasurementId::Pressure>(I(Idx::Pressure), raw.pressure);
+    store<MeasurementId::IAQ>(I(Idx::IAQ), 0.0F);
+    store<MeasurementId::IAQAccuracy>(I(Idx::IAQAccuracy), 0);
+    store<MeasurementId::CO2>(I(Idx::CO2), 0.0F);
+    store<MeasurementId::VOC>(I(Idx::VOC), 0.0F);
     return get_measurements();
   }
 
   last_output_ = *bsec_result;
 
   // Store BSEC-processed measurements
-  store(I(Idx::Temperature), MeasurementId::Temperature,
-        last_output_.temperature);
-  store(I(Idx::Humidity), MeasurementId::Humidity, last_output_.humidity);
-  store(I(Idx::Pressure), MeasurementId::Pressure, last_output_.pressure);
-  store(I(Idx::IAQ), MeasurementId::IAQ, last_output_.iaq);
-  store(I(Idx::IAQAccuracy), MeasurementId::IAQAccuracy,
-        static_cast<float>(last_output_.iaq_accuracy));
-  store(I(Idx::CO2), MeasurementId::CO2, last_output_.co2);
-  store(I(Idx::VOC), MeasurementId::VOC, last_output_.voc);
+  store<MeasurementId::Temperature>(I(Idx::Temperature),
+                                    last_output_.temperature);
+  store<MeasurementId::Humidity>(I(Idx::Humidity), last_output_.humidity);
+  store<MeasurementId::Pressure>(I(Idx::Pressure), last_output_.pressure);
+  store<MeasurementId::IAQ>(I(Idx::IAQ), last_output_.iaq);
+  store<MeasurementId::IAQAccuracy>(I(Idx::IAQAccuracy),
+                                    last_output_.iaq_accuracy);
+  store<MeasurementId::CO2>(I(Idx::CO2), last_output_.co2);
+  store<MeasurementId::VOC>(I(Idx::VOC), last_output_.voc);
 
   // Periodically save state (every 100 reads ≈ 5 minutes at 3s interval)
   read_count_++;
