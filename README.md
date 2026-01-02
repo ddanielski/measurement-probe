@@ -101,6 +101,37 @@ Re-run the setup tool to change BSEC configuration:
 go run tools/setup/main.go
 ```
 
+## Protobuf Generation
+
+The project uses [nanopb](https://jpa.kapsi.fi/nanopb/) for embedded-friendly protobuf serialization.
+
+### Regenerate Protobuf Files
+
+After modifying `proto/measurement.proto`:
+
+```bash
+# Generate descriptor
+python -m grpc_tools.protoc -I proto \
+    --descriptor_set_out=proto/generated/measurement.pb \
+    proto/measurement.proto
+
+# Generate nanopb C files
+nanopb_generator -D proto/generated \
+    -f proto/measurement.options \
+    proto/generated/measurement.pb
+
+# Move to component
+mv proto/generated/measurement.pb.h components/library/proto/include/
+mv proto/generated/measurement.pb.c components/library/proto/src/
+```
+
+### Proto Schema Location
+
+- **Schema**: `proto/measurement.proto`
+- **Options**: `proto/measurement.options` (nanopb static allocation limits)
+- **Generated**: `proto/generated/` (not committed)
+- **Component**: `components/library/proto/`
+
 ## Architecture
 
 ### Driver Layer (VFS-style)

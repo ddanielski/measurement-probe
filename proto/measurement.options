@@ -1,0 +1,5 @@
+# nanopb options for measurement.proto
+# Configures static allocation sizes for embedded use
+
+# MeasurementBatch - limit array size for static allocation
+sensor.MeasurementBatch.measurements  max_count:32

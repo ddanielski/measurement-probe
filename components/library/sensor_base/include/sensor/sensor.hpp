@@ -56,10 +56,12 @@ public:
 protected:
   std::array<Measurement, N> measurements_{};
 
-  /// Store a measurement value in the buffer
-  void store(size_t index, MeasurementId id, float value) {
+  /// Store a measurement with compile-time type enforcement
+  /// Usage: store<MeasurementId::Temperature>(0, value);
+  template <MeasurementId Id>
+  void store(size_t index, typename MeasurementTraits<Id>::type value) {
     if (index < N) {
-      measurements_[index] = {id, value};
+      measurements_[index] = make<Id>(value);
     }
   }
 

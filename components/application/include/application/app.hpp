@@ -28,9 +28,8 @@ protected:
 private:
   static constexpr const char *TAG = "probe";
 
-  void log_boot_info();
+  static void log_boot_info();
   void track_boot_count();
-  void test_littlefs();
   void init_sensors();
   void read_sensors();
   void run_continuous_mode();
