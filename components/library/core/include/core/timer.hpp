@@ -12,7 +12,6 @@
 #include <cassert>
 #include <chrono>
 #include <functional>
-#include <memory>
 
 namespace core {
 
@@ -21,11 +20,10 @@ class OneShotTimer {
 public:
   using Callback = std::function<void()>;
 
-  explicit OneShotTimer(Callback callback)
-      : callback_(std::make_unique<Callback>(std::move(callback))) {
+  explicit OneShotTimer(Callback callback) : callback_(std::move(callback)) {
     esp_timer_create_args_t args = {
         .callback = timer_callback,
-        .arg = callback_.get(),
+        .arg = this, // Pass 'this' instead of pointer to callback
         .dispatch_method = ESP_TIMER_TASK,
         .name = "oneshot",
         .skip_unhandled_events = true,
@@ -44,34 +42,29 @@ public:
   OneShotTimer(const OneShotTimer &) = delete;
   OneShotTimer &operator=(const OneShotTimer &) = delete;
 
-  OneShotTimer(OneShotTimer &&other) noexcept
-      : handle_(other.handle_), callback_(std::move(other.callback_)) {
-    other.handle_ = nullptr;
-  }
-
-  OneShotTimer &operator=(OneShotTimer &&other) noexcept {
-    if (this != &other) {
-      if (handle_ != nullptr) {
-        esp_timer_stop(handle_);
-        esp_timer_delete(handle_);
-      }
-      handle_ = other.handle_;
-      callback_ = std::move(other.callback_);
-      other.handle_ = nullptr;
-    }
-    return *this;
-  }
+  OneShotTimer(OneShotTimer &&) = delete;
+  OneShotTimer &operator=(OneShotTimer &&) = delete;
 
   /// Start timer with given delay
   template <typename Rep, typename Period>
   Status start(std::chrono::duration<Rep, Period> delay) {
-    auto us =
+    auto delay_us =
         std::chrono::duration_cast<std::chrono::microseconds>(delay).count();
-    return esp_timer_start_once(handle_, us);
+    esp_err_t err = esp_timer_start_once(handle_, delay_us);
+    if (err != ESP_OK) {
+      return core::Err(err);
+    }
+    return core::Ok();
   }
 
   /// Stop timer if running
-  Status stop() { return esp_timer_stop(handle_); }
+  Status stop() {
+    esp_err_t err = esp_timer_stop(handle_);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+      return core::Err(err);
+    }
+    return core::Ok();
+  }
 
   /// Check if timer is running
   [[nodiscard]] bool is_running() const { return esp_timer_is_active(handle_); }
@@ -80,26 +73,26 @@ public:
 
 private:
   static void timer_callback(void *arg) {
-    auto *cb = static_cast<Callback *>(arg);
-    if (cb && *cb) {
-      (*cb)();
+    auto *self = static_cast<OneShotTimer *>(arg);
+    if (self != nullptr && static_cast<bool>(self->callback_)) {
+      self->callback_();
     }
   }
 
   esp_timer_handle_t handle_ = nullptr;
-  std::unique_ptr<Callback> callback_;
+  Callback callback_;
 };
 
 /// Timer that fires repeatedly
+/// Memory: No heap allocation for timer management (callback stored inline)
 class PeriodicTimer {
 public:
   using Callback = std::function<void()>;
 
-  explicit PeriodicTimer(Callback callback)
-      : callback_(std::make_unique<Callback>(std::move(callback))) {
+  explicit PeriodicTimer(Callback callback) : callback_(std::move(callback)) {
     esp_timer_create_args_t args = {
         .callback = timer_callback,
-        .arg = callback_.get(),
+        .arg = this, // Pass 'this' instead of pointer to callback
         .dispatch_method = ESP_TIMER_TASK,
         .name = "periodic",
         .skip_unhandled_events = true,
@@ -118,39 +111,34 @@ public:
   PeriodicTimer(const PeriodicTimer &) = delete;
   PeriodicTimer &operator=(const PeriodicTimer &) = delete;
 
-  PeriodicTimer(PeriodicTimer &&other) noexcept
-      : handle_(other.handle_), callback_(std::move(other.callback_)) {
-    other.handle_ = nullptr;
-  }
-
-  PeriodicTimer &operator=(PeriodicTimer &&other) noexcept {
-    if (this != &other) {
-      if (handle_ != nullptr) {
-        esp_timer_stop(handle_);
-        esp_timer_delete(handle_);
-      }
-      handle_ = other.handle_;
-      callback_ = std::move(other.callback_);
-      other.handle_ = nullptr;
-    }
-    return *this;
-  }
+  PeriodicTimer(PeriodicTimer &&) = delete;
+  PeriodicTimer &operator=(PeriodicTimer &&) = delete;
 
   /// Start timer with given period
   template <typename Rep, typename Period>
   Status start(std::chrono::duration<Rep, Period> period) {
-    auto us =
+    auto period_us =
         std::chrono::duration_cast<std::chrono::microseconds>(period).count();
-    return esp_timer_start_periodic(handle_, us);
+    esp_err_t err = esp_timer_start_periodic(handle_, period_us);
+    if (err != ESP_OK) {
+      return core::Err(err);
+    }
+    return core::Ok();
   }
 
   /// Stop timer
-  Status stop() { return esp_timer_stop(handle_); }
+  Status stop() {
+    esp_err_t err = esp_timer_stop(handle_);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+      return core::Err(err);
+    }
+    return core::Ok();
+  }
 
   /// Restart with new period
   template <typename Rep, typename Period>
   Status restart(std::chrono::duration<Rep, Period> period) {
-    stop();
+    [[maybe_unused]] auto status = stop();
     return start(period);
   }
 
@@ -160,14 +148,14 @@ public:
 
 private:
   static void timer_callback(void *arg) {
-    auto *cb = static_cast<Callback *>(arg);
-    if (cb && *cb) {
-      (*cb)();
+    auto *self = static_cast<PeriodicTimer *>(arg);
+    if (self != nullptr && static_cast<bool>(self->callback_)) {
+      self->callback_();
     }
   }
 
   esp_timer_handle_t handle_ = nullptr;
-  std::unique_ptr<Callback> callback_;
+  Callback callback_;
 };
 
 } // namespace core

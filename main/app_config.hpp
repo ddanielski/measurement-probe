@@ -11,6 +11,9 @@
 
 #pragma once
 
+// Generated provisioning config (run 'go run tools/setup/main.go' to generate)
+#include <provisioning_config.h>
+
 #include <driver/gpio.h>
 
 #include <cstdint>

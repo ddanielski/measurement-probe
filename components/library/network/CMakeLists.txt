@@ -5,18 +5,19 @@
 
 idf_component_register(
     SRCS
-        "src/placeholder.cpp"
+        "src/wifi_manager.cpp"
+        "src/sntp.cpp"
     INCLUDE_DIRS
         "include"
     REQUIRES
-        core  # Our core wrappers
+        core
         esp_wifi
         esp_event
         esp_netif
         esp-tls
         esp_http_client
-        # mqtt  # Uncomment when MQTT transport is implemented
+        wifi_provisioning
+        bt
 )
 
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_23)
-

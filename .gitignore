@@ -37,6 +37,9 @@ secrets/
 *.key
 *.crt
 
+# Generated configuration (contains provisioning secrets)
+components/generated/
+
 # macOS
 .DS_Store
 

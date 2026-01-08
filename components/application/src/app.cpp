@@ -4,8 +4,7 @@
  */
 
 #include <application/app.hpp>
-#include <bme680/sensor.hpp>
-#include <sensor/timestamp_sensor.hpp>
+#include <sensor/log.hpp>
 
 #include "app_config.hpp"
 
@@ -13,8 +12,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include <cinttypes>
-#include <type_traits>
+#include <array>
+#include <span>
 
 namespace application {
 
@@ -31,10 +30,9 @@ void MeasurementProbe::run() {
     return;
   }
 
+  init_wifi();
   init_sensors();
-  read_sensors();
 
-  // TODO: Re-enable deep sleep mode
   run_continuous_mode();
 }
 
@@ -53,70 +51,137 @@ void MeasurementProbe::track_boot_count() {
   }
 }
 
-void MeasurementProbe::init_sensors() {
-  // Register timestamp sensor first (provides timing for batches)
-  sensors_.register_sensor(std::make_unique<sensor::TimestampSensor>());
-
-  // Create and register BME680 sensor with BSEC
-  sensor::bme680::BME680Sensor::Config bme_config{
-      .address = app::config::BME680_ADDRESS,
+void MeasurementProbe::init_wifi() {
+  // Configure WiFi manager
+  network::WifiConfig wifi_config{
+      .max_retries = app::config::WIFI_MAX_RETRIES,
+      .initial_backoff_ms = 1000,
+      .max_backoff_ms = 30000,
   };
 
-  // Use dedicated BSEC namespace for sensor state persistence
-  auto bme680 = std::make_unique<sensor::bme680::BME680Sensor>(
-      board_.i2c(), storage(core::NamespaceId::Bsec), bme_config);
-
-  if (!bme680->valid()) {
-    ESP_LOGE(TAG, "BME680 sensor not responding");
+  // Initialize WiFi with storage from WiFi namespace
+  auto &wifi_storage = storage(core::NamespaceId::Wifi);
+  if (auto err = wifi_.init(wifi_storage, wifi_config); !err) {
+    ESP_LOGE(TAG, "WiFi init failed: %s", esp_err_to_name(err.error()));
     return;
   }
 
-  sensors_.register_sensor(std::move(bme680));
+  // Set up state change callback
+  wifi_.on_state_change(
+      [this](network::WifiState old_state, network::WifiState new_state) {
+        on_wifi_state_change(old_state, new_state);
+      });
 
-  ESP_LOGI(TAG, "Registered %zu sensor(s)", sensors_.sensor_count());
+  // Check for stored credentials
+  if (wifi_.has_credentials()) {
+    ESP_LOGI(TAG, "Found stored WiFi credentials, connecting...");
+    if (auto err = wifi_.connect(); !err) {
+      ESP_LOGW(TAG, "Connect failed: %s", esp_err_to_name(err.error()));
+    }
+  } else {
+    ESP_LOGI(TAG, "No stored credentials, starting BLE provisioning...");
+
+    network::ProvisioningConfig prov_config{
+        .device_name_prefix = PROVISIONING_DEVICE_NAME,
+        .pop = PROVISIONING_POP,
+        .service_uuid = nullptr,
+        .timeout_sec = PROVISIONING_TIMEOUT_SEC,
+    };
+
+    if (auto err = wifi_.start_provisioning(prov_config); !err) {
+      ESP_LOGE(TAG, "Provisioning start failed: %s",
+               esp_err_to_name(err.error()));
+    }
+  }
 }
 
-void MeasurementProbe::read_sensors() {
-  auto result = sensors_.read_all();
-  if (!result) {
-    ESP_LOGE(TAG, "Sensor read failed: %s", esp_err_to_name(result.error()));
-    return;
-  }
+void MeasurementProbe::on_wifi_state_change(network::WifiState old_state,
+                                            network::WifiState new_state) {
+  ESP_LOGI(TAG, "WiFi state: %d -> %d", static_cast<int>(old_state),
+           static_cast<int>(new_state));
 
-  ESP_LOGI(TAG, "--- Sensor Readings ---");
-  for (const auto &m : *result) {
-    m.visit([&m](auto &&v) {
-      using T = std::decay_t<decltype(v)>;
-      if constexpr (std::is_same_v<T, bool>) {
-        ESP_LOGI(TAG, "  %s: %s", m.name(), v ? "true" : "false");
-      } else if constexpr (std::is_same_v<T, uint64_t>) {
-        ESP_LOGI(TAG, "  %s: %llu %s", m.name(), v, m.unit());
-      } else if constexpr (std::is_same_v<T, int64_t>) {
-        ESP_LOGI(TAG, "  %s: %lld %s", m.name(), v, m.unit());
-      } else if constexpr (std::is_same_v<T, uint32_t>) {
-        ESP_LOGI(TAG, "  %s: %lu %s", m.name(), static_cast<unsigned long>(v),
-                 m.unit());
-      } else if constexpr (std::is_same_v<T, int32_t>) {
-        ESP_LOGI(TAG, "  %s: %ld %s", m.name(), static_cast<long>(v), m.unit());
-      } else if constexpr (std::is_same_v<T, uint8_t>) {
-        ESP_LOGI(TAG, "  %s: %u %s", m.name(), static_cast<unsigned>(v),
-                 m.unit());
-      } else if constexpr (std::is_floating_point_v<T>) {
-        ESP_LOGI(TAG, "  %s: %.2f %s", m.name(), static_cast<double>(v),
-                 m.unit());
-      }
-    });
+  switch (new_state) {
+  case network::WifiState::Connected: {
+    auto info = wifi_.connection_info();
+    ESP_LOGI(TAG, "Connected! IP: %d.%d.%d.%d, RSSI: %d dBm", info.ip[0],
+             info.ip[1], info.ip[2], info.ip[3], info.rssi);
+    break;
   }
+  case network::WifiState::Disconnected:
+    ESP_LOGW(TAG, "WiFi disconnected");
+    break;
+  case network::WifiState::Provisioning:
+    ESP_LOGI(TAG, "BLE provisioning active - use app to configure WiFi");
+    break;
+  case network::WifiState::Failed:
+    ESP_LOGE(TAG, "WiFi connection failed after max retries");
+    break;
+  default:
+    break;
+  }
+}
+
+void MeasurementProbe::init_sensors() {
+  // Subscribe to sensor data events (event-driven architecture)
+  sensor_event_sub_ =
+      core::events().subscribe(SENSOR_EVENTS, sensor::SensorEvent::DataReady,
+                               sensor_event_handler, this);
+
+  // Create and register timestamp sensor with 1s interval
+  timestamp_monitor_.emplace(std::chrono::seconds(1));
+  sensors_.register_monitor(*timestamp_monitor_);
+
+  // Create and register BME680 with externally-timed monitor (BSEC controls
+  // timing)
+  auto &bsec_storage = storage(core::NamespaceId::Bsec);
+  bme680_monitor_.emplace(board_.i2c(), bsec_storage,
+                          sensor::bme680::BME680Sensor::Config{
+                              .address = app::config::BME680_ADDRESS,
+                              .sensor_id = static_cast<sensor::SensorIdType>(
+                                  sensor::SensorId::BME680)});
+  sensors_.register_monitor(*bme680_monitor_);
+
+  ESP_LOGI(TAG, "Registered %zu sensor monitor(s)", sensors_.monitor_count());
+
+  // Set up periodic logging timer (aggregates multiple sensor readings)
+  log_timer_ =
+      std::make_unique<core::PeriodicTimer>([this]() { on_log_timer(); });
+  [[maybe_unused]] auto status = log_timer_->start(std::chrono::seconds(10));
+}
+
+void MeasurementProbe::sensor_event_handler(void *arg,
+                                            esp_event_base_t /*base*/,
+                                            int32_t event_id,
+                                            void *event_data) {
+  auto *self = static_cast<MeasurementProbe *>(arg);
+  if (event_id == static_cast<int32_t>(sensor::SensorEvent::DataReady) &&
+      event_data != nullptr) {
+    // ESP-IDF copies event data, so we need to reconstruct it
+    const auto *event =
+        static_cast<const sensor::SensorDataEvent *>(event_data);
+    self->on_sensor_data(*event);
+  }
+}
+
+void MeasurementProbe::on_sensor_data(const sensor::SensorDataEvent &event) {
+  ESP_LOGD(TAG, "Sensor %u: %zu measurements ready", event.sensor_id,
+           event.count);
+}
+
+void MeasurementProbe::on_log_timer() {
+  // Zero-allocation read into stack buffer
+  std::array<sensor::Measurement, MAX_MEASUREMENTS> buffer{};
+  size_t count = sensors_.read_all_into(buffer);
+  sensor::log_measurements(TAG, std::span(buffer.data(), count));
 }
 
 void MeasurementProbe::run_continuous_mode() {
-  auto interval_ms = sensors_.sample_interval().count();
-  ESP_LOGI(TAG, "Deep sleep disabled - reading sensors every %lldms",
-           static_cast<long long>(interval_ms));
+  ESP_LOGI(TAG, "Running - monitors sample independently, logging every 10s");
 
+  // Monitors run on their own timers
+  // Just keep the main task alive
   while (true) {
-    vTaskDelay(pdMS_TO_TICKS(interval_ms));
-    read_sensors();
+    vTaskDelay(portMAX_DELAY);
   }
 }
 

@@ -97,8 +97,10 @@
   "remoteUser": "vscode",
 
   // Mount .cache for p10k instant prompt persistence
+  // Mount /dev from host to detect new USB connections (e.g., /dev/ttyACM0) dynamically
   "mounts": [
-    "source=${localWorkspaceFolder}/.cache,target=/home/vscode/.cache,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/.cache,target=/home/vscode/.cache,type=bind,consistency=cached",
+    "source=/dev,target=/dev,type=bind"
   ],
 
   // Privileged mode for USB serial access to ESP32
