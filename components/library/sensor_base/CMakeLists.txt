@@ -1,7 +1,8 @@
 # Sensor interface and manager
 
 idf_component_register(
-    SRCS "src/sensor.cpp"
+    SRCS
+        "src/sensor.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES core
+    REQUIRES core network
 )

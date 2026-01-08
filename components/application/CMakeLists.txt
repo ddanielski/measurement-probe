@@ -15,4 +15,6 @@ idf_component_register(
         power
         sensor_base
         bme680_sensor
+        network
+        generated  # For provisioning_config.h
 )

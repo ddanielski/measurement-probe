@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <variant>
@@ -118,9 +119,9 @@ namespace detail {
 // Generate lookup table from traits at compile time
 template <std::size_t... Is>
 constexpr auto make_meta_table(std::index_sequence<Is...>) {
-  return std::array<MeasurementMeta, sizeof...(Is)>{
-      {{MeasurementTraits<static_cast<MeasurementId>(Is)>::name,
-        MeasurementTraits<static_cast<MeasurementId>(Is)>::unit}...}};
+  return std::array<MeasurementMeta, sizeof...(Is)>{MeasurementMeta{
+      MeasurementTraits<static_cast<MeasurementId>(Is)>::name,
+      MeasurementTraits<static_cast<MeasurementId>(Is)>::unit}...};
 }
 } // namespace detail
 

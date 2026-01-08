@@ -8,6 +8,7 @@
 #include <esp_log.h>
 #include <esp_timer.h>
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -21,12 +22,10 @@ int64_t get_timestamp_ns() {
 }
 } // namespace
 
-BME680Sensor::BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage)
-    : BME680Sensor(bus, storage, Config{}) {}
-
 BME680Sensor::BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage,
                            const Config &config)
-    : driver_(bus, config.address), storage_(storage) {
+    : driver_(bus, config.address), storage_(storage),
+      sensor_id_(config.sensor_id) {
 
   // Open driver
   auto status = driver_.open();
@@ -45,7 +44,7 @@ BME680Sensor::BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage,
              info.variant_id == 1 ? "88" : "80", info.chip_id);
   }
 
-  // Try to initialize BSEC (non-fatal if it fails, will retry on read)
+  // Initialize BSEC
   (void)init_bsec();
 }
 
@@ -78,11 +77,10 @@ core::Status BME680Sensor::init_bsec() {
   return core::Ok();
 }
 
-core::Result<std::span<const Measurement>> BME680Sensor::read() {
+std::span<const Measurement> BME680Sensor::sample() {
   if (!initialized_) {
-    auto status = init_bsec();
-    if (!status) {
-      return core::Err(status.error());
+    if (!init_bsec()) {
+      return get_measurements(); // Return default/cached
     }
   }
 
@@ -91,40 +89,77 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
   // Get BSEC sensor settings
   auto settings = bsec_.get_sensor_settings(time_ns);
 
-  // Configure BME680 based on BSEC requirements
-  if (settings.process_data != 0) {
-    driver::bme680::Config config{};
-    config.temp_os = settings.temperature_oversampling;
-    config.pres_os = settings.pressure_oversampling;
-    config.hum_os = settings.humidity_oversampling;
-    config.heater_temp = settings.heater_temperature;
-    config.heater_dur = settings.heater_duration;
-    config.enable_gas = settings.run_gas != 0;
-
-    const driver::bme680::Config *config_ptr = &config;
-    (void)driver_.ioctl(
-        static_cast<uint32_t>(driver::bme680::IoctlCmd::Configure), config_ptr);
+  // Update next call time from BSEC
+  if (settings.next_call_time_ns > 0) {
+    next_call_time_ns_ = settings.next_call_time_ns;
   }
+
+  // Only process if BSEC requests data
+  if (settings.process_data == 0) {
+    return get_measurements(); // Return cached
+  }
+
+  // Configure BME680 based on BSEC requirements
+  driver::bme680::Config config{};
+  config.temp_os = settings.temperature_oversampling;
+  config.pres_os = settings.pressure_oversampling;
+  config.hum_os = settings.humidity_oversampling;
+  config.heater_temp = settings.heater_temperature;
+  config.heater_dur = settings.heater_duration;
+  config.enable_gas = settings.run_gas != 0;
+
+  const driver::bme680::Config *config_ptr = &config;
+  (void)driver_.ioctl(
+      static_cast<uint32_t>(driver::bme680::IoctlCmd::Configure), config_ptr);
 
   // Read raw sensor data
   std::array<uint8_t, sizeof(driver::bme680::SensorData)> buffer{};
   auto read_result = driver_.read(buffer);
+
   if (!read_result) {
-    return core::Err(read_result.error());
+    return get_measurements(); // Return cached on error
   }
 
   driver::bme680::SensorData raw{};
   std::memcpy(&raw, buffer.data(), sizeof(raw));
 
-  // Process through BSEC
-  // Note: BSEC expects pressure in Pa, we have hPa
+  // Debug: log raw sensor values
+  ESP_LOGW(TAG, "Raw: T=%.2f°C P=%.2fhPa H=%.2f%% Gas=%.0fΩ valid=%d",
+           raw.temperature, raw.pressure, raw.humidity, raw.gas_resistance,
+           raw.gas_valid);
+
+  // Process through BSEC (expects pressure in Pa, we have hPa)
   auto bsec_result =
       bsec_.process(time_ns, raw.temperature, raw.pressure * 100.0F,
                     raw.humidity, raw.gas_resistance, raw.gas_valid);
 
   auto I = [](Idx i) { return static_cast<size_t>(i); };
 
-  if (!bsec_result) {
+  if (bsec_result) {
+    last_output_ = *bsec_result;
+
+    // Debug: log BSEC outputs
+    ESP_LOGW(TAG, "BSEC: IAQ=%.1f acc=%d CO2=%.0fppm VOC=%.2fppm",
+             last_output_.iaq, last_output_.iaq_accuracy, last_output_.co2,
+             last_output_.voc);
+
+    // Store BSEC-processed measurements
+    store<MeasurementId::Temperature>(I(Idx::Temperature),
+                                      last_output_.temperature);
+    store<MeasurementId::Humidity>(I(Idx::Humidity), last_output_.humidity);
+    store<MeasurementId::Pressure>(I(Idx::Pressure), last_output_.pressure);
+    store<MeasurementId::IAQ>(I(Idx::IAQ), last_output_.iaq);
+    store<MeasurementId::IAQAccuracy>(I(Idx::IAQAccuracy),
+                                      last_output_.iaq_accuracy);
+    store<MeasurementId::CO2>(I(Idx::CO2), last_output_.co2);
+    store<MeasurementId::VOC>(I(Idx::VOC), last_output_.voc);
+
+    // Periodically save state (every 100 samples ≈ 5 minutes at 3s)
+    sample_count_++;
+    if (sample_count_ % 100 == 0) {
+      (void)save_state();
+    }
+  } else {
     // Fall back to raw values
     store<MeasurementId::Temperature>(I(Idx::Temperature), raw.temperature);
     store<MeasurementId::Humidity>(I(Idx::Humidity), raw.humidity);
@@ -133,53 +168,20 @@ core::Result<std::span<const Measurement>> BME680Sensor::read() {
     store<MeasurementId::IAQAccuracy>(I(Idx::IAQAccuracy), 0);
     store<MeasurementId::CO2>(I(Idx::CO2), 0.0F);
     store<MeasurementId::VOC>(I(Idx::VOC), 0.0F);
-    return get_measurements();
-  }
-
-  last_output_ = *bsec_result;
-
-  // Store BSEC-processed measurements
-  store<MeasurementId::Temperature>(I(Idx::Temperature),
-                                    last_output_.temperature);
-  store<MeasurementId::Humidity>(I(Idx::Humidity), last_output_.humidity);
-  store<MeasurementId::Pressure>(I(Idx::Pressure), last_output_.pressure);
-  store<MeasurementId::IAQ>(I(Idx::IAQ), last_output_.iaq);
-  store<MeasurementId::IAQAccuracy>(I(Idx::IAQAccuracy),
-                                    last_output_.iaq_accuracy);
-  store<MeasurementId::CO2>(I(Idx::CO2), last_output_.co2);
-  store<MeasurementId::VOC>(I(Idx::VOC), last_output_.voc);
-
-  // Periodically save state (every 100 reads ≈ 5 minutes at 3s interval)
-  read_count_++;
-  if (read_count_ % 100 == 0) {
-    (void)save_state();
   }
 
   return get_measurements();
 }
 
-core::Status BME680Sensor::sleep() {
-  // Nothing to do if not initialized
-  if (!initialized_) {
-    return core::Ok();
-  }
-  (void)save_state(); // Save state before sleep
-  return driver_.close();
-}
+std::chrono::microseconds BME680Sensor::next_sample_delay() {
+  int64_t now_ns = get_timestamp_ns();
+  int64_t delay_ns = next_call_time_ns_ - now_ns;
 
-core::Status BME680Sensor::wake() {
-  // Self-healing: try to initialize if not ready
-  if (!initialized_) {
-    return init_bsec();
-  }
-  return driver_.open();
-}
+  // Minimum 10ms
+  delay_ns = std::max(delay_ns, 10'000'000LL);
 
-std::chrono::milliseconds BME680Sensor::min_interval() {
-  return bsec_.sample_interval();
+  return std::chrono::microseconds(delay_ns / 1000LL);
 }
-
-bool BME680Sensor::valid() const { return initialized_; }
 
 core::Status BME680Sensor::save_state() {
   auto guard = storage_.auto_commit();

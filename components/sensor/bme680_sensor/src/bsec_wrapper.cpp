@@ -170,8 +170,12 @@ core::Result<BsecOutput> BsecWrapper::process(int64_t time_ns,
   BsecOutput result{};
   result.valid = false;
 
+  ESP_LOGW(TAG, "BSEC returned %d outputs", n_outputs);
+
   for (uint8_t i = 0; i < n_outputs; i++) {
     const auto &out = outputs.at(i);
+    ESP_LOGW(TAG, "  Output[%d]: id=%d signal=%.2f acc=%d", i, out.sensor_id,
+             out.signal, out.accuracy);
     switch (out.sensor_id) {
     case BSEC_OUTPUT_IAQ:
       result.iaq = out.signal;
@@ -186,6 +190,7 @@ core::Result<BsecOutput> BsecWrapper::process(int64_t time_ns,
       break;
     case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
       result.voc = out.signal;
+      ESP_LOGW(TAG, "  -> VOC signal: %.4f", out.signal);
       break;
     case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
       result.temperature = out.signal;

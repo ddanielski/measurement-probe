@@ -1,11 +1,12 @@
 # Measurement Probe - Partition Table
 # =====================================
 # ESP32-C3 has 4MB flash
-# Layout: NVS + OTA data + 2x OTA slots + LittleFS storage
+# Layout: NVS + NVS keys + OTA data + 2x OTA slots + LittleFS storage
 #
 # Name,       Type, SubType,  Offset,   Size,    Flags
 # -------------------------------------------------------------------------
-nvs,          data, nvs,      0x9000,   0x6000,
+nvs,          data, nvs,      0x9000,   0x5000,
+nvs_keys,     data, nvs_keys, 0xe000,   0x1000,
 otadata,      data, ota,      0xf000,   0x2000,
 phy_init,     data, phy,      0x11000,  0x1000,
 ota_0,        app,  ota_0,    0x20000,  0x180000,

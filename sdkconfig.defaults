@@ -8,6 +8,11 @@
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 
 # =============================================================================
+# Main Task Stack Size
+# =============================================================================
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=9216
+
+# =============================================================================
 # Compiler Configuration
 # =============================================================================
 # Disable C++ exceptions and RTTI (embedded best practice, saves ~50KB)
@@ -38,7 +43,6 @@ CONFIG_ESP_WIFI_RX_BA_WIN=6
 CONFIG_ESP_WIFI_SLP_IRAM_OPT=y
 CONFIG_ESP_WIFI_SLP_DEFAULT_MIN_ACTIVE_TIME=50
 CONFIG_ESP_WIFI_SLP_DEFAULT_MAX_ACTIVE_TIME=10
-CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
 CONFIG_ESP_WIFI_IRAM_OPT=y
 CONFIG_ESP_WIFI_RX_IRAM_OPT=y
 
@@ -86,7 +90,30 @@ CONFIG_VFS_SUPPORT_SELECT=n
 CONFIG_VFS_SUPPORT_TERMIOS=n
 
 # =============================================================================
-# Future: Bluetooth (for Improv WiFi provisioning)
+# Bluetooth (NimBLE for BLE provisioning)
 # =============================================================================
-# CONFIG_BT_ENABLED=y
-# CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# Roles: Peripheral required for provisioning (device advertises and accepts connections)
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+
+# Disable unused BLE 5.0 features
+CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT=n
+CONFIG_BT_NIMBLE_EXT_ADV=n
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+
+# =============================================================================
+# WiFi Provisioning (BLE only - no SoftAP)
+# =============================================================================
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
+CONFIG_WIFI_PROV_SCAN_MAX_ENTRIES=8
+CONFIG_WIFI_PROV_AUTOSTOP_TIMEOUT=30
+
+# =============================================================================
+# NVS Encryption (for secure credential storage)
+# =============================================================================
+# CONFIG_NVS_ENCRYPTION=y

@@ -1,6 +1,11 @@
 /**
  * @file sensor.hpp
- * @brief BME680 high-level sensor with BSEC integration
+ * @brief BME680 sensor with BSEC integration
+ *
+ * Implements IExternallyTimedSensor - BSEC controls sampling timing.
+ * The sensor just knows how to read; Monitor handles when to read.
+ *
+ * Sensor ID is provided by the application via Config.
  */
 
 #pragma once
@@ -29,17 +34,19 @@ enum class Idx : size_t {
 inline constexpr size_t MEASUREMENT_COUNT = static_cast<size_t>(Idx::Count);
 
 /// BME680 sensor with BSEC for IAQ/CO2/VOC
-class BME680Sensor final : public SensorBase<BME680Sensor, MEASUREMENT_COUNT> {
+/// Implements IExternallyTimedSensor - BSEC dictates when to sample
+class BME680Sensor final : public SensorBase<BME680Sensor, MEASUREMENT_COUNT>,
+                           public IExternallyTimedSensor {
 public:
+  static constexpr size_t MEASUREMENT_COUNT_V = MEASUREMENT_COUNT;
+
   /// Configuration for the sensor
   struct Config {
     uint8_t address = driver::bme680::I2C_ADDR_SECONDARY;
+    SensorIdType sensor_id = 0; ///< ID from application's SensorId enum
   };
 
-  /// Create sensor with I2C bus and storage for BSEC state
-  BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage);
-
-  /// Create sensor with config
+  /// Create sensor with I2C bus, storage, and config
   BME680Sensor(driver::i2c::IMaster &bus, core::IStorage &storage,
                const Config &config);
 
@@ -51,16 +58,26 @@ public:
   BME680Sensor &operator=(BME680Sensor &&) = delete;
 
   // ISensor interface
+  [[nodiscard]] SensorIdType id() const override { return sensor_id_; }
   [[nodiscard]] std::string_view name() const override { return "bme680"; }
-  [[nodiscard]] core::Result<std::span<const Measurement>> read() override;
-  [[nodiscard]] core::Status sleep() override;
-  [[nodiscard]] core::Status wake() override;
-  [[nodiscard]] std::chrono::milliseconds min_interval() override;
+
+  [[nodiscard]] size_t measurement_count() const override {
+    return MEASUREMENT_COUNT;
+  }
+
+  [[nodiscard]] std::chrono::milliseconds min_interval() const override {
+    return bsec_.sample_interval();
+  }
+
+  [[nodiscard]] std::span<const Measurement> sample() override;
+
+  // IExternallyTimedSensor interface
+  [[nodiscard]] std::chrono::microseconds next_sample_delay() override;
 
   /// Check if sensor is ready for use
-  [[nodiscard]] bool valid() const;
+  [[nodiscard]] bool valid() const { return initialized_; }
 
-  /// Save BSEC state
+  /// Save BSEC state to storage
   [[nodiscard]] core::Status save_state();
 
 private:
@@ -70,8 +87,10 @@ private:
   core::IStorage &storage_;
   BsecWrapper bsec_;
   BsecOutput last_output_{};
+  SensorIdType sensor_id_;
+  int64_t next_call_time_ns_ = 0;
   bool initialized_ = false;
-  uint32_t read_count_ = 0;
+  uint32_t sample_count_ = 0;
 };
 
 } // namespace sensor::bme680
