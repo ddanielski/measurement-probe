@@ -29,7 +29,8 @@ cd measurement-probe
 The setup tool initializes git submodules and configures BSEC for your target:
 
 ```bash
-go run tools/setup/main.go
+cd tools/setup
+go run ./cmd/setup
 ```
 
 The tool will prompt you for:
@@ -76,7 +77,8 @@ measurement-probe/
 │       └── bsec2/                  # CMake wrapper for BSEC2
 └── tools/
     └── setup/                      # Go setup tool
-        └── main.go
+        ├── cmd/setup/main.go       # Entry point
+        └── internal/               # Private packages
 ```
 
 ## Configuration
@@ -98,7 +100,8 @@ namespace config {
 Re-run the setup tool to change BSEC configuration:
 
 ```bash
-go run tools/setup/main.go
+cd tools/setup
+go run ./cmd/setup
 ```
 
 ## Protobuf Generation
@@ -199,7 +202,7 @@ Submodules may need updating:
 
 ```bash
 git submodule update --init --recursive
-go run tools/setup/main.go
+cd tools/setup && go run ./cmd/setup && cd ../..
 idf.py fullclean
 idf.py build
 ```

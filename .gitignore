@@ -55,3 +55,7 @@ venv/
 *.tmp
 *.bak
 dependencies.lock
+
+# Go test coverage
+*.out
+coverage.html
