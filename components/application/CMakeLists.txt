@@ -16,5 +16,7 @@ idf_component_register(
         sensor_base
         bme680_sensor
         network
+        cloud
         generated  # For provisioning_config.h
+        esp_app_format  # For esp_app_get_description()
 )

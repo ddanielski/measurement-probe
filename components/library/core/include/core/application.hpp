@@ -71,6 +71,7 @@ protected:
     config.map(NamespaceId::App, BackendId::Nvs);
     config.map(NamespaceId::Bsec, BackendId::Nvs);
     config.map(NamespaceId::Wifi, BackendId::Nvs);
+    config.map(NamespaceId::Cloud, BackendId::Nvs);
     config.map(NamespaceId::Measurements, BackendId::LittleFs);
     return config;
   }

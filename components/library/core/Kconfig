@@ -1,0 +1,13 @@
+menu "Core Library Configuration"
+
+    config HTTP_CLIENT_RESPONSE_BUFFER_SIZE
+        int "HTTP client response buffer size (bytes)"
+        default 4096
+        range 512 32768
+        help
+            Size of the pre-allocated buffer for HTTP response data.
+            This buffer is allocated once at HttpClient construction and
+            reused for all requests. Larger buffers allow larger responses
+            but consume more RAM.
+
+endmenu

@@ -121,6 +121,7 @@ public:
 
   [[nodiscard]] virtual bool contains(std::string_view key) = 0;
   [[nodiscard]] virtual Status erase(std::string_view key) = 0;
+  [[nodiscard]] virtual Status erase_all() = 0;
   [[nodiscard]] virtual Status commit() = 0;
 
 protected:

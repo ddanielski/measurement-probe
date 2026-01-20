@@ -16,6 +16,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # clang-format/tidy from apt for code formatting
 # bear for generating compile_commands.json
 # golang for setup tools
+# apt-transport-https, gnupg for gcloud CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
     clang-format \
     clang-tidy \
@@ -24,6 +25,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     zsh \
     golang \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# =============================================================================
+# Install Google Cloud CLI
+# =============================================================================
+# For provisioning tools to fetch Cloud Run service URLs
+RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
+    && apt-get update && apt-get install -y --no-install-recommends google-cloud-cli \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -17,5 +17,6 @@
         "rtos",
         "idf",
         "esp32"
-    ]
+    ],
+    "idf.flashType": "UART"
 }
