@@ -13,8 +13,11 @@
 #include "timestamp_sensor.hpp"
 
 #include <bme680/sensor.hpp>
+#include <cloud/cloud_manager.hpp>
+#include <core/app_events.hpp>
 #include <core/application.hpp>
 #include <core/event_loop.hpp>
+#include <core/rtc_storage.hpp>
 #include <core/timer.hpp>
 #include <network/wifi_manager.hpp>
 #include <power/sleep.hpp>
@@ -23,6 +26,7 @@
 #include <sensor/manager.hpp>
 #include <sensor/monitor.hpp>
 
+#include <atomic>
 #include <memory>
 
 namespace application {
@@ -66,6 +70,29 @@ private:
   /// Called periodically to log sensor readings (aggregated)
   void on_log_timer();
 
+  /// Initialize cloud services
+  void init_cloud();
+
+  /// Start cloud when WiFi connects
+  void start_cloud();
+
+  /// Send telemetry to cloud
+  void send_telemetry();
+
+  /// Static cloud event handler (bridges ESP-IDF callback to member function)
+  static void cloud_event_handler(void *arg, esp_event_base_t base,
+                                  int32_t event_id, void *event_data);
+
+  /// Static network event handler (sets flags for deferred execution)
+  static void network_event_handler(void *arg, esp_event_base_t base,
+                                    int32_t event_id, void *event_data);
+
+  /// Handle factory reset using generic storage interface
+  void handle_factory_reset();
+
+  /// Handle device revocation
+  void on_device_revoked();
+
   Board &board_;
   DataManager data_manager_;
   SensorManager sensors_{data_manager_};
@@ -74,6 +101,13 @@ private:
 
   /// Event subscriptions
   core::EventSubscription sensor_event_sub_;
+  core::EventSubscription cloud_event_sub_;
+  core::EventSubscription network_event_sub_;
+
+  /// Deferred cloud operations (set by event, executed on main task)
+  std::atomic<bool> cloud_start_pending_{false};
+  std::atomic<bool> cloud_stop_pending_{false};
+  std::atomic<bool> device_info_pending_{false};
 
   /// Periodic logging timer
   std::unique_ptr<core::PeriodicTimer> log_timer_;
@@ -86,6 +120,9 @@ private:
 
   std::optional<TimestampMonitor> timestamp_monitor_;
   std::optional<BME680Monitor> bme680_monitor_;
+
+  /// Cloud connectivity (optional - device may not be provisioned)
+  std::optional<cloud::CloudManager> cloud_;
 };
 
 } // namespace application

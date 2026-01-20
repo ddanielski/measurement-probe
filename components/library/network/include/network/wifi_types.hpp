@@ -98,12 +98,20 @@ struct ConnectionInfo {
 /// WiFi manager events (published via event bus)
 /// Subscribe to NETWORK_EVENTS base with these IDs
 enum class NetworkEvent : int32_t {
+  // WiFi connection events
   WifiConnected,
   WifiDisconnected,
   WifiConnectionFailed,
+
+  // Provisioning lifecycle events
   ProvisioningStarted,
   ProvisioningComplete,
   ProvisioningFailed,
+  ProvisioningTimeout,
+
+  // BLE provisioning detail events
+  BlePairingStarted,
+  BleCredentialsReceived,
 };
 
 } // namespace network

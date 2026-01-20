@@ -12,6 +12,7 @@
 
 #include <esp_littlefs.h>
 
+#include <dirent.h>
 #include <sys/stat.h>
 
 #include <cstdio>
@@ -158,6 +159,23 @@ public:
   [[nodiscard]] Status erase(std::string_view key) override {
     auto path = make_path(key);
     return (remove(path.c_str()) == 0) ? Ok() : Err(ESP_ERR_NOT_FOUND);
+  }
+
+  [[nodiscard]] Status erase_all() override {
+    DIR *dir = opendir(base_path_.c_str());
+    if (dir == nullptr) {
+      return Err(ESP_ERR_NOT_FOUND);
+    }
+
+    struct dirent *entry = nullptr;
+    while ((entry = readdir(dir)) != nullptr) {
+      if (entry->d_type == DT_REG) {
+        std::string path = base_path_ + "/" + entry->d_name;
+        (void)remove(path.c_str());
+      }
+    }
+    closedir(dir);
+    return Ok();
   }
 
   [[nodiscard]] Status commit() override {

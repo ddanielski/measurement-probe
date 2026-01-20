@@ -2,13 +2,6 @@
 
 ESP32-based environmental sensor probe with BME680/BME688 for temperature, humidity, pressure, and air quality (IAQ, CO2, VOC).
 
-## Features
-
-- **BME680/BME688 Sensor**: Temperature, humidity, pressure, gas resistance
-- **Bosch BSEC Library**: Advanced air quality calculations (IAQ, estimated CO2/VOC)
-- **Low Power Modes**: Continuous (3s) or Ultra-Low Power (300s) sampling
-- **Modern C++ Architecture**: VFS-style drivers, sensor abstraction, CRTP patterns
-
 ## Prerequisites
 
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/) v5.x

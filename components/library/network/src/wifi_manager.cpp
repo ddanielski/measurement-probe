@@ -425,6 +425,7 @@ void WifiManager::on_reconnect_timer() {
 
 void WifiManager::on_prov_timeout() {
   ESP_LOGW(TAG, "Provisioning timeout - stopping");
+  publish_event(NetworkEvent::ProvisioningTimeout);
   (void)stop_provisioning();
   set_state(WifiState::Failed);
   publish_event(NetworkEvent::ProvisioningFailed);
@@ -523,13 +524,16 @@ void WifiManager::prov_event_handler(void *arg, esp_event_base_t /*base*/,
 
   switch (event_id) {
   case WIFI_PROV_START:
-    ESP_LOGI(TAG, "Provisioning started");
+    ESP_LOGI(TAG, "Provisioning started - awaiting BLE connection");
+    publish_event(NetworkEvent::BlePairingStarted);
     break;
 
   case WIFI_PROV_CRED_RECV: {
     auto *wifi_sta_cfg = static_cast<wifi_sta_config_t *>(event_data);
     ESP_LOGI(TAG, "Received credentials for SSID: %s",
              reinterpret_cast<const char *>(wifi_sta_cfg->ssid));
+
+    publish_event(NetworkEvent::BleCredentialsReceived);
 
     // Store credentials using type-safe setters
     WifiCredentials creds{};

@@ -8,9 +8,12 @@ idf_component_register(
         esp_common
         esp_timer
         esp_event
+        esp_hw_support
         nvs_flash
         esp_driver_gpio
         littlefs
+        esp_http_client
+        mbedtls
 )
 
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_23)

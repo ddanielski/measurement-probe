@@ -113,6 +113,14 @@ public:
     return (err == ESP_OK) ? Ok() : Err(err);
   }
 
+  [[nodiscard]] Status erase_all() override {
+    esp_err_t err = nvs_erase_all(handle_);
+    if (err == ESP_OK) {
+      err = nvs_commit(handle_);
+    }
+    return (err == ESP_OK) ? Ok() : Err(err);
+  }
+
   [[nodiscard]] Status commit() override {
     esp_err_t err = nvs_commit(handle_);
     return (err == ESP_OK) ? Ok() : Err(err);

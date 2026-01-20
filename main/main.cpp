@@ -12,6 +12,8 @@
 
 #include <esp_log.h>
 
+#include <memory>
+
 namespace {
 constexpr const char *TAG = "main";
 } // namespace
@@ -23,17 +25,18 @@ extern "C" void app_main() {
       .i2c_scl = app::config::I2C_SCL_PIN,
   };
 
+  // Board on stack is small
   application::Board board(board_config);
   if (!board.valid()) {
     ESP_LOGE(TAG, "Board initialization failed");
     return;
   }
 
-  // Create and run application
-  application::MeasurementProbe app(
+  // Application is too large for stack - allocate on heap
+  auto app = std::make_unique<application::MeasurementProbe>(
       board, std::chrono::seconds(app::config::SLEEP_INTERVAL_SEC));
 
-  if (auto err = app.start(); !err) {
+  if (auto err = app->start(); !err) {
     ESP_LOGE(TAG, "App failed: %s", esp_err_to_name(err.error()));
   }
 }
