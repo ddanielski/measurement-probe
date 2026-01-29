@@ -1,0 +1,122 @@
+name: Upload Measurement Schema
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - master
+    paths:
+      - 'CMakeLists.txt'
+      - 'proto/**/*.proto'
+      - 'components/library/sensor_base/include/sensor/measurement.hpp'
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: ${{ vars.TELEMETRY_SERVICE_NAME || 'telemetry-api' }}
+  SERVICE_REGION: ${{ vars.TELEMETRY_SERVICE_REGION || 'us-west1' }}
+
+jobs:
+  upload-schema:
+    name: Upload Schema to Backend API
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for Workload Identity Federation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ci/schema-upload/go.mod
+
+      - name: Extract version and app name from CMakeLists.txt
+        id: cmake
+        run: |
+          # Extract PROJECT_VER from CMakeLists.txt
+          VERSION=$(grep -E '^\s*set\s*\(\s*PROJECT_VER\s+' CMakeLists.txt | sed -E 's/.*PROJECT_VER\s+"([^"]+)".*/\1/')
+          if [ -z "$VERSION" ]; then
+            echo "Error: Could not find PROJECT_VER in CMakeLists.txt"
+            exit 1
+          fi
+
+          # Extract project name from CMakeLists.txt
+          PROJECT_NAME=$(grep -E '^\s*project\s*\(' CMakeLists.txt | sed -E 's/.*project\s*\(\s*([^)]+)\s*\).*/\1/')
+          if [ -z "$PROJECT_NAME" ]; then
+            echo "Error: Could not find project() in CMakeLists.txt"
+            exit 1
+          fi
+
+          # Convert project name to app name (measurement_probe -> probe)
+          # Remove common prefixes like "measurement_", "device_", etc.
+          APP_NAME=$(echo "$PROJECT_NAME" | sed -E 's/^(measurement_|device_|sensor_)?//' | sed 's/_/-/g')
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME="probe" # Fallback
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_OUTPUT
+          echo "Extracted from CMakeLists.txt:"
+          echo "  Version: $VERSION"
+          echo "  App name: $APP_NAME (from project: $PROJECT_NAME)"
+
+      - name: Get API URL from Cloud Run
+        id: api_url
+        run: |
+          # Install gcloud CLI is already done by auth action
+          echo "Fetching Cloud Run service URL: $SERVICE_NAME in $SERVICE_REGION"
+          API_URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$SERVICE_REGION" \
+            --project="$GCP_PROJECT_ID" \
+            --format="value(status.url)" 2>/dev/null || echo "")
+
+          if [ -z "$API_URL" ]; then
+            echo "Warning: Could not get service URL from Cloud Run, trying fallback..."
+            # Fallback: read from endpoints.hpp (handles multi-line definitions)
+            if [ -f "components/library/cloud/include/cloud/endpoints.hpp" ]; then
+              API_URL=$(grep -A 1 'BASE_URL' components/library/cloud/include/cloud/endpoints.hpp | grep -oE 'https?://[^"]+' | head -1)
+            fi
+          fi
+
+          if [ -z "$API_URL" ]; then
+            echo "Error: Could not determine API URL"
+            echo "  - Check service name: $SERVICE_NAME"
+            echo "  - Check region: $SERVICE_REGION"
+            echo "  - Check endpoints.hpp file"
+            exit 1
+          fi
+
+          echo "API_URL=$API_URL" >> $GITHUB_OUTPUT
+          echo "✓ Using API URL: $API_URL"
+
+      - name: Build and run schema upload tool
+        working-directory: ci/schema-upload
+        run: |
+          go build -o schema-upload main.go
+          ./schema-upload \
+            -app="${{ steps.cmake.outputs.APP_NAME }}" \
+            -version="${{ steps.cmake.outputs.VERSION }}" \
+            -api-url="${{ steps.api_url.outputs.API_URL }}" \
+            -project="${{ env.GCP_PROJECT_ID }}" \
+            -secret="github-actions-api-key"
+
+      - name: Verify upload
+        run: |
+          # Use gcloud to get the API key for verification curl
+          API_KEY=$(gcloud secrets versions access latest --secret=github-actions-api-key --project=$GCP_PROJECT_ID)
+          curl -s -f \
+            -H "Authorization: Bearer $API_KEY" \
+            "${{ steps.api_url.outputs.API_URL }}/admin/schemas/${{ steps.cmake.outputs.APP_NAME }}/${{ steps.cmake.outputs.VERSION }}" \
+            | jq '.' || echo "Warning: Could not verify schema (may need jq installed)"
