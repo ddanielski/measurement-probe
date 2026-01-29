@@ -51,7 +51,6 @@ func (w *Writer) GenerateCSV(creds *Credentials, outputPath string) error {
 	records := [][]string{
 		{"device_id", "data", "string", creds.DeviceID},
 		{"secret", "data", "string", creds.Secret},
-		{"fb_api_key", "data", "string", creds.FirebaseAPIKey},
 	}
 
 	for _, record := range records {

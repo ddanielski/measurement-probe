@@ -5,10 +5,6 @@
  * Exchanges device credentials (device_id + secret) for JWT token.
  * Stores token in RTC memory to survive deep sleep.
  * Handles token refresh and re-authentication on 401.
- *
- * Authentication flow (simplified January 2026):
- *   1. POST /auth/device → JWT Token (direct use)
- *   2. POST /auth/refresh (with Bearer token) → New JWT Token
  */
 
 #pragma once
@@ -311,7 +307,7 @@ private:
       return core::Err(ESP_ERR_INVALID_SIZE);
     }
 
-    client.set_auth_header(
+    (void)client.set_auth_header(
         std::string_view{header_buf.data(), static_cast<size_t>(header_len)});
 
     // POST /auth/refresh with empty body
@@ -433,8 +429,8 @@ private:
 
     if (rtc_token_ != nullptr) {
       rtc_token_->set(token, expires_at);
-      ESP_LOGI(TAG, "Token stored, valid=%d, rtc_len=%u", rtc_token_->is_valid(),
-               rtc_token_->token.length);
+      ESP_LOGI(TAG, "Token stored, valid=%d, rtc_len=%u",
+               rtc_token_->is_valid(), rtc_token_->token.length);
     } else {
       ESP_LOGW(TAG, "rtc_token_ is null, cannot store token");
     }
@@ -450,7 +446,7 @@ private:
   AuthState state_{AuthState::Unauthenticated};
   AuthError last_error_{AuthError::None};
 
-  // Fixed buffer - no heap
+  // Fixed buffers - no heap
   std::array<char, auth_buffers::AUTH_HEADER_SIZE> auth_header_buffer_{};
 };
 

@@ -209,15 +209,17 @@ public:
 
     err = esp_http_client_set_header(handle_, "Content-Type",
                                      content_type_str(content_type));
-    if (err != ESP_OK)
+    if (err != ESP_OK) {
       return Err(err);
+    }
 
     if (!body.empty()) {
       err = esp_http_client_set_post_field(
           handle_, reinterpret_cast<const char *>(body.data()),
           static_cast<int>(body.size()));
-      if (err != ESP_OK)
+      if (err != ESP_OK) {
         return Err(err);
+      }
     }
 
     // Re-apply auth header right before perform (in case set_url cleared it)
@@ -296,11 +298,6 @@ private:
   static constexpr const char *TAG = "HttpClient";
 
   void init(const HttpClientConfig &config) {
-    // Enable debug logging to see actual HTTP request/response
-    esp_log_level_set("HTTP_CLIENT", ESP_LOG_DEBUG);
-    esp_log_level_set("esp-tls", ESP_LOG_DEBUG);
-    esp_log_level_set("transport_base", ESP_LOG_DEBUG);
-
     base_url_ = config.base_url;
 
     esp_http_client_config_t esp_config{};

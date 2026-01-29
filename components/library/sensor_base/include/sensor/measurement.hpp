@@ -17,6 +17,9 @@ namespace sensor {
 
 /// Measurement type identifiers
 enum class MeasurementId : uint8_t {
+  // System (id 1 in protobuf)
+  Timestamp,
+
   // Environmental
   Temperature,
   Humidity,
@@ -27,30 +30,6 @@ enum class MeasurementId : uint8_t {
   IAQAccuracy, // IAQ calibration accuracy (0-3)
   CO2,         // Estimated CO2 in ppm
   VOC,         // Estimated VOC in ppm
-
-  // Light
-  Illuminance,
-  UVIndex,
-
-  // Motion
-  AccelX,
-  AccelY,
-  AccelZ,
-  GyroX,
-  GyroY,
-  GyroZ,
-
-  // Other
-  Distance,
-  Voltage,
-  Current,
-
-  // Digital
-  MotionDetected,
-  DoorOpen,
-
-  // System
-  Timestamp,
 
   Count // Must be last
 };
@@ -73,6 +52,9 @@ template <MeasurementId Id> struct MeasurementTraits;
     static constexpr const char *unit = UNIT;                                  \
   }
 
+// System
+MEASUREMENT_TRAIT(Timestamp, uint64_t, "timestamp", "ms");
+
 // Environmental
 MEASUREMENT_TRAIT(Temperature, float, "temperature", "°C");
 MEASUREMENT_TRAIT(Humidity, float, "humidity", "%");
@@ -83,30 +65,6 @@ MEASUREMENT_TRAIT(IAQ, float, "iaq", "");
 MEASUREMENT_TRAIT(IAQAccuracy, uint8_t, "iaq_accuracy", "/3");
 MEASUREMENT_TRAIT(CO2, float, "co2", "ppm");
 MEASUREMENT_TRAIT(VOC, float, "voc", "ppm");
-
-// Light
-MEASUREMENT_TRAIT(Illuminance, float, "illuminance", "lux");
-MEASUREMENT_TRAIT(UVIndex, float, "uv_index", "");
-
-// Motion
-MEASUREMENT_TRAIT(AccelX, float, "accel_x", "g");
-MEASUREMENT_TRAIT(AccelY, float, "accel_y", "g");
-MEASUREMENT_TRAIT(AccelZ, float, "accel_z", "g");
-MEASUREMENT_TRAIT(GyroX, float, "gyro_x", "°/s");
-MEASUREMENT_TRAIT(GyroY, float, "gyro_y", "°/s");
-MEASUREMENT_TRAIT(GyroZ, float, "gyro_z", "°/s");
-
-// Other
-MEASUREMENT_TRAIT(Distance, float, "distance", "m");
-MEASUREMENT_TRAIT(Voltage, float, "voltage", "V");
-MEASUREMENT_TRAIT(Current, float, "current", "A");
-
-// Digital
-MEASUREMENT_TRAIT(MotionDetected, bool, "motion_detected", "");
-MEASUREMENT_TRAIT(DoorOpen, bool, "door_open", "");
-
-// System
-MEASUREMENT_TRAIT(Timestamp, uint64_t, "timestamp", "ms");
 
 #undef MEASUREMENT_TRAIT
 
@@ -151,7 +109,7 @@ struct Measurement {
   MeasurementValue value;
 
   // Default constructor
-  Measurement() : id(MeasurementId::Temperature), value(0.0f) {}
+  Measurement() : id(MeasurementId::Timestamp), value(uint64_t{0}) {}
 
   // Generic constructor (runtime, no compile-time type check on id)
   template <typename T> Measurement(MeasurementId id, T v) : id(id), value(v) {
