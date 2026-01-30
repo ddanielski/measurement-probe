@@ -52,25 +52,17 @@ jobs:
           fi
 
           # Extract project name from CMakeLists.txt
-          PROJECT_NAME=$(grep -E '^\s*project\s*\(' CMakeLists.txt | sed -E 's/.*project\s*\(\s*([^)]+)\s*\).*/\1/')
-          if [ -z "$PROJECT_NAME" ]; then
+          APP_NAME=$(grep -E '^\s*project\s*\(' CMakeLists.txt | sed -E 's/.*project\s*\(\s*([^)]+)\s*\).*/\1/')
+          if [ -z "$APP_NAME" ]; then
             echo "Error: Could not find project() in CMakeLists.txt"
             exit 1
           fi
 
-          # Convert project name to app name (measurement_probe -> probe)
-          # Remove common prefixes like "measurement_", "device_", etc.
-          APP_NAME=$(echo "$PROJECT_NAME" | sed -E 's/^(measurement_|device_|sensor_)?//' | sed 's/_/-/g')
-          if [ -z "$APP_NAME" ]; then
-            APP_NAME="probe" # Fallback
-          fi
-
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_OUTPUT
           echo "Extracted from CMakeLists.txt:"
           echo "  Version: $VERSION"
-          echo "  App name: $APP_NAME (from project: $PROJECT_NAME)"
+          echo "  App name: $APP_NAME"
 
       - name: Get API URL from Cloud Run
         id: api_url
