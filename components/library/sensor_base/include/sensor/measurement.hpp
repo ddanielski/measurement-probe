@@ -15,23 +15,16 @@
 
 namespace sensor {
 
-/// Measurement type identifiers
 enum class MeasurementId : uint8_t {
-  // System (id 1 in protobuf)
-  Timestamp,
-
-  // Environmental
+  Timestamp = 1,
   Temperature,
   Humidity,
   Pressure,
-
-  // Air quality
-  IAQ,         // Indoor Air Quality index
-  IAQAccuracy, // IAQ calibration accuracy (0-3)
-  CO2,         // Estimated CO2 in ppm
-  VOC,         // Estimated VOC in ppm
-
-  Count // Must be last
+  IAQ,
+  IAQAccuracy,
+  CO2,
+  VOC,
+  Count
 };
 
 /// Value type for measurements (all practical types)
@@ -74,17 +67,17 @@ struct MeasurementMeta {
 };
 
 namespace detail {
-// Generate lookup table from traits at compile time
 template <std::size_t... Is>
 constexpr auto make_meta_table(std::index_sequence<Is...>) {
   return std::array<MeasurementMeta, sizeof...(Is)>{MeasurementMeta{
-      MeasurementTraits<static_cast<MeasurementId>(Is)>::name,
-      MeasurementTraits<static_cast<MeasurementId>(Is)>::unit}...};
+      MeasurementTraits<static_cast<MeasurementId>(Is + 1)>::name,
+      MeasurementTraits<static_cast<MeasurementId>(Is + 1)>::unit}...};
 }
 } // namespace detail
 
 inline constexpr auto MEASUREMENT_META = detail::make_meta_table(
-    std::make_index_sequence<static_cast<std::size_t>(MeasurementId::Count)>{});
+    std::make_index_sequence<static_cast<std::size_t>(MeasurementId::Count) -
+                             1>{});
 
 // ============================================================================
 // Type traits helpers
@@ -159,9 +152,8 @@ struct Measurement {
     return std::visit(std::forward<Visitor>(vis), value);
   }
 
-  /// Get metadata for this measurement (runtime lookup)
   [[nodiscard]] const MeasurementMeta &meta() const {
-    return MEASUREMENT_META[static_cast<size_t>(id)];
+    return MEASUREMENT_META[static_cast<size_t>(id) - 1];
   }
 
   [[nodiscard]] const char *name() const { return meta().name; }

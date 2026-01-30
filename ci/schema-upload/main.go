@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -216,12 +217,23 @@ func generateSchema() (SchemaRequest, error) {
 			if strings.HasPrefix(trimmed, "//") || trimmed == "" {
 				continue
 			}
-			// Parse enum entries like "Temperature," or "IAQ,"
+			// Parse enum entries like "Temperature," or "Timestamp = 1,"
 			if strings.Contains(trimmed, ",") {
-				enumName := strings.TrimSpace(strings.Split(trimmed, ",")[0])
+				entry := strings.TrimSpace(strings.Split(trimmed, ",")[0])
 				// Remove any trailing comments
-				if idx := strings.Index(enumName, "//"); idx >= 0 {
-					enumName = strings.TrimSpace(enumName[:idx])
+				if idx := strings.Index(entry, "//"); idx >= 0 {
+					entry = strings.TrimSpace(entry[:idx])
+				}
+				// Check for explicit value assignment (e.g., "Timestamp = 1")
+				var enumName string
+				if idx := strings.Index(entry, "="); idx >= 0 {
+					enumName = strings.TrimSpace(entry[:idx])
+					valueStr := strings.TrimSpace(entry[idx+1:])
+					if val, err := strconv.ParseUint(valueStr, 10, 32); err == nil {
+						enumValue = uint32(val)
+					}
+				} else {
+					enumName = entry
 				}
 				if enumName != "" {
 					enumNameToValue[enumName] = enumValue
@@ -278,8 +290,7 @@ func generateSchema() (SchemaRequest, error) {
 			continue
 		}
 
-		// Protobuf field IDs are 1-based, so add 1 to the 0-based enum value
-		measurementID := enumID + 1
+		measurementID := enumID
 
 		// Map C++ types to backend types
 		backendType := mapType(typeStr)

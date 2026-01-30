@@ -17,6 +17,7 @@
 #include <esp_http_client.h>
 #include <esp_log.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -224,29 +225,45 @@ public:
 
     // Re-apply auth header right before perform (in case set_url cleared it)
     if (auth_buffer_[0] != '\0') {
+      size_t auth_len = strlen(auth_buffer_.data());
+      ESP_LOGI(TAG, "Re-applying auth header: %zu bytes", auth_len);
       err = esp_http_client_set_header(handle_, "Authorization",
                                        auth_buffer_.data());
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "Failed to re-apply auth header: %s",
                  esp_err_to_name(err));
       }
+    } else {
+      ESP_LOGW(TAG, "No auth header in buffer to apply");
     }
 
     err = esp_http_client_perform(handle_);
+
+    // Log response info regardless of error
+    int status = esp_http_client_get_status_code(handle_);
+    int64_t content_len = esp_http_client_get_content_length(handle_);
+    ESP_LOGI(TAG, "HTTP response: status=%d, content_len=%lld, body_len=%zu",
+             status, content_len, response_len_);
+
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "HTTP request failed: %s (status was %d)",
+               esp_err_to_name(err), status);
+      // Log response body if available (might contain error message)
+      if (response_len_ > 0) {
+        ESP_LOGI(TAG, "Response body: %.*s",
+                 static_cast<int>(std::min(response_len_, size_t{200})),
+                 reinterpret_cast<const char *>(response_buffer_.data()));
+      }
       return Err(err);
     }
 
     HttpResponse response{
         .data = response_buffer_.data(),
         .length = response_len_,
-        .status_code = esp_http_client_get_status_code(handle_),
-        .content_length =
-            static_cast<size_t>(esp_http_client_get_content_length(handle_)),
+        .status_code = status,
+        .content_length = static_cast<size_t>(content_len),
     };
 
-    ESP_LOGD(TAG, "HTTP %d, len=%zu", response.status_code, response.length);
     return response;
   }
 
@@ -298,6 +315,9 @@ private:
   static constexpr const char *TAG = "HttpClient";
 
   void init(const HttpClientConfig &config) {
+    // Enable debug logging for HTTP layer
+    esp_log_level_set("HTTP_CLIENT", ESP_LOG_DEBUG);
+
     base_url_ = config.base_url;
 
     esp_http_client_config_t esp_config{};

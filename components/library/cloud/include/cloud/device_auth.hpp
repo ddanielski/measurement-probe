@@ -97,15 +97,25 @@ public:
 
     // Build "Bearer <token>" into fixed buffer
     auto token = rtc_token_->token.view();
-    ESP_LOGD(TAG, "Building auth header with token len=%zu", token.size());
+    ESP_LOGI(TAG, "Building auth header: token_len=%zu", token.size());
+
+    // Debug: show token prefix and suffix to verify integrity
+    if (token.size() > 20) {
+      ESP_LOGI(TAG, "Token start: %.20s...", token.data());
+      ESP_LOGI(TAG, "Token end: ...%s", token.data() + token.size() - 20);
+    }
 
     int len =
         snprintf(auth_header_buffer_.data(), auth_header_buffer_.size(),
                  "Bearer %.*s", static_cast<int>(token.size()), token.data());
 
     if (len < 0 || static_cast<size_t>(len) >= auth_header_buffer_.size()) {
+      ESP_LOGE(TAG, "Auth header buffer overflow: len=%d, buf=%zu", len,
+               auth_header_buffer_.size());
       return core::Err(ESP_ERR_INVALID_SIZE);
     }
+
+    ESP_LOGI(TAG, "Auth header built: total_len=%d", len);
 
     return transport::AuthHeader{
         .name = "Authorization",
@@ -159,18 +169,25 @@ public:
   [[nodiscard]] AuthResult authenticate() {
     core::LockGuard lock(mutex_);
 
+    ESP_LOGI(TAG, "=== Starting authentication ===");
+
     // Check RTC token first
     if (rtc_token_ != nullptr && rtc_token_->is_valid()) {
+      auto token = rtc_token_->token.view();
+      ESP_LOGI(TAG, "Found cached RTC token: len=%zu", token.size());
       state_ = AuthState::Authenticated;
-      ESP_LOGI(TAG, "Using cached RTC token");
       return {.state = AuthState::Authenticated};
     }
 
+    ESP_LOGI(TAG, "No valid cached token, authenticating with backend...");
     auto status = do_authenticate();
     if (!status) {
+      ESP_LOGE(TAG, "Authentication failed: state=%d, error=%d",
+               static_cast<int>(state_), static_cast<int>(last_error_));
       return {.state = state_, .error = last_error_};
     }
 
+    ESP_LOGI(TAG, "=== Authentication successful ===");
     return {.state = AuthState::Authenticated};
   }
 
@@ -376,30 +393,48 @@ private:
 
   /// Parse {"token": "...", "expires_in": N}
   [[nodiscard]] core::Status parse_auth_response(std::string_view json) {
+    ESP_LOGI(TAG, "Parsing auth response: %zu bytes", json.size());
+
+    // Debug: show response structure
+    if (json.size() > 100) {
+      ESP_LOGI(TAG, "Response start: %.100s...", json.data());
+    } else {
+      ESP_LOGI(TAG, "Response: %.*s", static_cast<int>(json.size()),
+               json.data());
+    }
+
     // Find "token": "..."
     auto token_pos = json.find("\"token\"");
     if (token_pos == std::string_view::npos) {
-      ESP_LOGE(TAG, "No token in response");
+      ESP_LOGE(TAG, "No 'token' field in response");
       return core::Err(ESP_ERR_INVALID_RESPONSE);
     }
 
     auto colon = json.find(':', token_pos);
     if (colon == std::string_view::npos) {
+      ESP_LOGE(TAG, "No colon after 'token'");
       return core::Err(ESP_ERR_INVALID_RESPONSE);
     }
 
     auto quote_start = json.find('"', colon);
     if (quote_start == std::string_view::npos) {
+      ESP_LOGE(TAG, "No opening quote for token value");
       return core::Err(ESP_ERR_INVALID_RESPONSE);
     }
 
     auto quote_end = json.find('"', quote_start + 1);
     if (quote_end == std::string_view::npos) {
+      ESP_LOGE(TAG, "No closing quote for token value");
       return core::Err(ESP_ERR_INVALID_RESPONSE);
     }
 
     std::string_view token =
         json.substr(quote_start + 1, quote_end - quote_start - 1);
+
+    ESP_LOGI(TAG, "Extracted token: len=%zu", token.size());
+    if (token.size() > 20) {
+      ESP_LOGI(TAG, "Token prefix: %.20s...", token.data());
+    }
 
     // Find expires_in
     int64_t expires_in = 3600; // Default 1 hour
@@ -424,13 +459,21 @@ private:
     auto expires_at =
         std::chrono::system_clock::now() + std::chrono::seconds(expires_in);
 
-    ESP_LOGI(TAG, "Parsed token len=%zu, expires_in=%lld", token.size(),
-             expires_in);
+    ESP_LOGI(TAG, "Token expires_in=%lld seconds", expires_in);
 
     if (rtc_token_ != nullptr) {
       rtc_token_->set(token, expires_at);
-      ESP_LOGI(TAG, "Token stored, valid=%d, rtc_len=%u",
+      ESP_LOGI(TAG, "Token stored in RTC: valid=%d, stored_len=%u",
                rtc_token_->is_valid(), rtc_token_->token.length);
+
+      // Verify storage by reading back
+      auto stored = rtc_token_->token.view();
+      if (stored.size() != token.size()) {
+        ESP_LOGE(TAG, "TOKEN MISMATCH! original=%zu, stored=%zu", token.size(),
+                 stored.size());
+      } else {
+        ESP_LOGI(TAG, "Token storage verified: %zu bytes", stored.size());
+      }
     } else {
       ESP_LOGW(TAG, "rtc_token_ is null, cannot store token");
     }
